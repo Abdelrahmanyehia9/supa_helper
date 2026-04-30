@@ -11,11 +11,10 @@ class SupaGoogleProvider implements SupaSocialMediaAuth<GoogleSignInAuthenticati
   final String? nonce ;
    final String? hostedDomain ;
    final List<String>scopes ;
-   SupaGoogleProvider({this.clientId, this.scopes = const ['email', 'profile'],this.hostedDomain, this.nonce, this.serverClientId}){
-     init() ;
-   }
+   SupaGoogleProvider({this.clientId, this.scopes = const ['email', 'profile'],this.hostedDomain, this.nonce, this.serverClientId}) ;
+   bool _isInitialized = false;
 
-   Future<void>init()async{
+   Future<void>_init()async{
     await GoogleSignIn.instance.initialize(
        clientId: clientId,
        hostedDomain: hostedDomain,
@@ -27,6 +26,10 @@ class SupaGoogleProvider implements SupaSocialMediaAuth<GoogleSignInAuthenticati
    @override
   Future<SupaAuthResult<GoogleSignInAuthentication>> signIn() async{
 try{
+  if (!_isInitialized) {
+    await _init();
+  }
+  _isInitialized = true;
   final GoogleSignIn google = GoogleSignIn.instance ;
   final googleUser = await google.authenticate(scopeHint: scopes);
   final googleAuth = googleUser.authentication;

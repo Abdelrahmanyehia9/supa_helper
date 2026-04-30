@@ -1,0 +1,2014 @@
+===== C:\flutter_projects\supa_helper\lib\supa_helper.dart =====
+library ;
+
+export 'src/supa.dart';
+export 'src/errors/supa_exception.dart';
+export 'src/models/supa_login_result.dart';
+export 'src/service/authentication/social_media_providers/supa_apple_provider.dart';
+export 'src/service/authentication/social_media_providers/supa_facebook_provider.dart';
+export 'src/service/authentication/social_media_providers/supa_google_provider.dart';
+
+
+===== C:\flutter_projects\supa_helper\lib\src\supa.dart =====
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'service/authentication/supa_auth.dart';
+import 'service/database/supa_database.dart';
+import 'service/realtime/supa_real_time.dart';
+import 'service/storage/supa_storage.dart';
+
+/// Main entry point for Supabase helper package.
+/// Singleton wrapper around Supabase services.
+///
+/// Usage:
+/// ```dart
+/// await Supa.instance.init(
+///   url: 'YOUR_URL',
+///   anonKey: 'YOUR_ANON_KEY',
+/// );
+///
+/// await Supa.instance.auth.signIn(...);
+/// final data = await Supa.instance.database.GET;
+/// ```
+Supa get  supa => Supa.instance;
+class Supa {
+  Supa._();
+  /// Global singleton instance.
+  static final Supa instance = Supa._();
+  bool _initialized = false;
+  /// Initialize Supabase once at app startup.
+  Future<void> init({
+    required String url,
+    required String anonKey,
+    Map<String, String>? headers,
+    RealtimeClientOptions realtimeClientOptions =
+    const RealtimeClientOptions(),
+    PostgrestClientOptions postgrestOptions =
+    const PostgrestClientOptions(),
+    StorageClientOptions storageOptions =
+    const StorageClientOptions(),
+    FlutterAuthClientOptions authOptions =
+    const FlutterAuthClientOptions(),
+    Future<String?> Function()? accessToken,
+    bool? debug,
+  }) async {
+    if (_initialized) return;
+    await Supabase.initialize(
+      url: url,
+      anonKey: anonKey,
+      headers: headers,
+      realtimeClientOptions: realtimeClientOptions,
+      postgrestOptions: postgrestOptions,
+      storageOptions: storageOptions,
+      authOptions: authOptions,
+      accessToken: accessToken,
+      debug: debug,
+    );
+    _initialized = true;
+  }
+
+  /// Ensure package initialized before using services.
+  void _ensureInitialized() {
+    if (!_initialized || !Supabase.instance.isInitialized) {
+      throw Exception(
+        'Supa is not initialized.\n'
+            'Call supa.init(...) before using any service.',
+      );
+    }
+  }
+
+  /// Raw Supabase client.
+  SupabaseClient get client {
+    _ensureInitialized();
+    return Supabase.instance.client;
+  }
+
+  // =========================
+  // Lazy Services
+  // =========================
+  SupaAuth? _auth;
+  SupaDatabase? _database;
+  SupaStorage? _storage;
+  SupaRealTime? _realtime;
+
+  /// Authentication service.
+  SupaAuth get auth {
+    _ensureInitialized();
+    return _auth ??= SupaAuth(client.auth);
+  }
+  /// Database service.
+  SupaDatabase get database {
+    _ensureInitialized();
+    return _database ??= SupaDatabase(client.rest);
+  }
+  /// Storage service.
+  SupaStorage get storage {
+    _ensureInitialized();
+    return _storage ??= SupaStorage(client.storage);
+  }
+  /// Realtime service.
+  SupaRealTime get realtime {
+    _ensureInitialized();
+    return _realtime ??= SupaRealTime(client.realtime);
+  }
+
+  /// Reset cached services (optional).
+  /// Useful for logout / testing.
+  void reset() {
+    _auth = null;
+    _database = null;
+    _storage = null;
+    _realtime = null;
+  }
+}
+
+===== C:\flutter_projects\supa_helper\lib\src\errors\supa_exception.dart =====
+/// Base exception for all `supa_helper` errors.
+sealed class SupaException implements Exception {
+  final String message;
+  const SupaException(this.message);
+
+  @override
+  String toString() => '$runtimeType: $message';
+}
+
+/// Thrown when an authentication operation fails.
+class SupaAuthException extends SupaException {
+  const SupaAuthException(super.message);
+}
+
+/// Thrown when a database operation fails.
+class SupaDatabaseException extends SupaException {
+  const SupaDatabaseException(super.message);
+}
+
+/// Thrown when a storage operation fails.
+class SupaStorageException extends SupaException {
+  const SupaStorageException(super.message);
+}
+
+/// Thrown when a realtime subscription operation fails.
+class SupaRealtimeException extends SupaException {
+  const SupaRealtimeException(super.message);
+}
+
+===== C:\flutter_projects\supa_helper\lib\src\models\supa_login_result.dart =====
+class SupaAuthResult<T> {
+  final String idToken ;
+  final T? rawData ;
+  const SupaAuthResult({required this.idToken, this.rawData});
+}
+
+===== C:\flutter_projects\supa_helper\lib\src\service\authentication\supa_auth.dart =====
+import 'package:flutter/cupertino.dart';
+import 'package:supa_helper/src/service/authentication/supa_auth_social_media.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../errors/supa_exception.dart';
+import 'supa_auth_mobile.dart';
+
+/// Handles all authentication operations with Supabase.
+final class SupaAuth {
+  final GoTrueClient _client;
+  SupaAuth(this._client);
+
+  /// Access phone/OTP authentication methods.
+  SupaAuthMobileAuthHelper get phoneProvider => SupaAuthMobileAuthHelper(_client);
+
+  /// Signs in a user with [email] and [password].
+  Future<AuthResponse> signInWithEmailAndPassword({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      return await _client.signInWithPassword(password: password, email: email);
+    } on AuthException catch (e) {
+      throw SupaAuthException(e.message);
+    } catch (e) {
+      throw SupaAuthException(e.toString());
+    }
+  }
+
+  /// Creates a new user with [email] and [password].
+  /// [metaData] is saved in `auth.users.raw_user_meta_data`.
+  Future<AuthResponse> createUser({
+    required String email,
+    required String password,
+    String? emailRedirectTo,
+    Map<String, dynamic>? metaData,
+  }) async {
+    try {
+      return await _client.signUp(password: password, email: email, data: metaData);
+    } on AuthException catch (e) {
+      throw SupaAuthException(e.message);
+    } catch (e) {
+      throw SupaAuthException(e.toString());
+    }
+  }
+
+  /// Sends a password reset email to [email].
+  /// [redirect] is the URL to redirect to after reset.
+  Future<void> sendForgetPasswordEmail({
+    required String email,
+    String? redirect,
+  }) async {
+    try {
+      await _client.resetPasswordForEmail(email, redirectTo: redirect);
+    } on AuthException catch (e) {
+      throw SupaAuthException(e.message);
+    } catch (e) {
+      throw SupaAuthException(e.toString());
+    }
+  }
+
+  /// Updates the current user's [email], [password], or [data].
+  Future<void> updateUser({
+    String? password,
+    String? email,
+    Object? data,
+  }) async {
+    try {
+      await _client.updateUser(UserAttributes(password: password, email: email, data: data));
+    } on AuthException catch (e) {
+      throw SupaAuthException(e.message);
+    } catch (e) {
+      throw SupaAuthException(e.toString());
+    }
+  }
+
+  /// Signs in using a social media [provider] (e.g. Google, Facebook).
+  /// [onSuccess] returns the raw data from the provider typed as [T].
+  /// [T] can be -- `AuthorizationCredentialAppleID` for Apple, `GoogleSignInAuthentication` for Google, `LoginResult` for Facebook
+  Future<AuthResponse> socialMediaSignIn<T>(
+      SupaSocialMediaAuth provider,
+      ValueChanged<T>? onSuccess,
+      ) async {
+    try {
+      final response = await provider.signIn();
+      final result = await _client.signInWithIdToken(
+        idToken: response.idToken,
+        provider: provider.oAuthProvider,
+      );
+      if (result.session != null) onSuccess?.call(response.rawData);
+      return result;
+    } on AuthException catch (e) {
+      throw SupaAuthException(e.message);
+    } catch (e) {
+      throw SupaAuthException(e.toString());
+    }
+  }
+}
+
+===== C:\flutter_projects\supa_helper\lib\src\service\authentication\supa_auth_mobile.dart =====
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+class SupaAuthMobileAuthHelper {
+final GoTrueClient _client ;
+ const SupaAuthMobileAuthHelper(this._client);
+  /// send otp to phone number
+  Future<void> sendOtp({
+    String? phone,
+     OtpChannel channel = OtpChannel.sms,
+    Map<String, dynamic>? data,
+    // if true will create new user if not exist
+    bool createUser = true,
+    String? captchaToken,
+  }) async {
+    await _client.signInWithOtp(
+      phone: phone,
+      channel: channel,
+      data: data,
+      shouldCreateUser: createUser,
+      captchaToken: captchaToken,
+    );
+  }
+  /// verify otp
+  Future<AuthResponse> verifyOtp({
+    required String phone,
+    required String otp,
+    OtpType type = OtpType.sms,
+    String? captchaToken,
+    String? tokenHash
+  }) async {
+    return await _client.verifyOTP(
+        phone: phone, token: otp, type: type,
+      captchaToken: captchaToken,
+      tokenHash: tokenHash
+    );
+  }
+
+
+}
+
+===== C:\flutter_projects\supa_helper\lib\src\service\authentication\supa_auth_social_media.dart =====
+import 'package:supa_helper/src/models/supa_login_result.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+abstract class SupaSocialMediaAuth<T> {
+
+  /// login and return id token
+  Future<SupaAuthResult<T>> signIn();
+  /// oAuth provider
+  OAuthProvider get oAuthProvider;
+
+}
+
+===== C:\flutter_projects\supa_helper\lib\src\service\authentication\social_media_providers\supa_apple_provider.dart =====
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:supa_helper/src/errors/supa_exception.dart';
+import 'package:supa_helper/src/service/authentication/supa_auth_social_media.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../../models/supa_login_result.dart';
+
+class SupaAppleProvider
+    implements SupaSocialMediaAuth<AuthorizationCredentialAppleID> {
+  final List<AppleIDAuthorizationScopes> scopes;
+  final WebAuthenticationOptions? webAuthenticationOptions;
+  final String? nonce;
+  final String? state;
+
+  SupaAppleProvider({
+    this.scopes = const [
+      AppleIDAuthorizationScopes.email,
+      AppleIDAuthorizationScopes.fullName,
+    ],
+    this.webAuthenticationOptions,
+    this.nonce,
+    this.state,
+  });
+
+  @override
+  OAuthProvider get oAuthProvider => OAuthProvider.apple;
+
+  @override
+  Future<SupaAuthResult<AuthorizationCredentialAppleID>> signIn() async {
+    try {
+      {
+        final cred = await SignInWithApple.getAppleIDCredential(
+          scopes: scopes,
+          nonce: nonce,
+          state: state,
+          webAuthenticationOptions: webAuthenticationOptions,
+        );
+        if (cred.identityToken != null) {
+          return SupaAuthResult<AuthorizationCredentialAppleID>(
+            idToken: cred.identityToken!,
+            rawData: cred,
+          );
+        } else {
+          throw SupaAuthException('No id token found');
+        }
+      }
+    } catch (e) {
+      throw SupaAuthException(e.toString());
+    }
+  }
+}
+
+===== C:\flutter_projects\supa_helper\lib\src\service\authentication\social_media_providers\supa_facebook_provider.dart =====
+import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
+import 'package:supa_helper/src/errors/supa_exception.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../models/supa_login_result.dart';
+import '../supa_auth_social_media.dart';
+
+///using config first read https://facebook.meedu.app/docs/7.x.x/intro/
+class SupaFacebookProvider implements SupaSocialMediaAuth<LoginResult> {
+  final List<String> scopes;
+  final LoginBehavior loginBehavior;
+  final LoginTracking loginTracking;
+  final String? nonce;
+
+  const SupaFacebookProvider({
+    this.loginBehavior = LoginBehavior.nativeWithFallback,
+    this.loginTracking = LoginTracking.limited,
+    this.nonce,
+    this.scopes = const ['email', 'public_profile'],
+  });
+
+  @override
+  Future<SupaAuthResult<LoginResult>> signIn() async {
+try{
+  final result = await FacebookAuth.instance.login(
+    permissions: scopes,
+    loginBehavior: loginBehavior,
+    loginTracking: loginTracking,
+    nonce: nonce,
+  );
+  // if login failed throw error
+  if (result.status == LoginStatus.success && result.accessToken != null) {
+    return SupaAuthResult<LoginResult>(idToken: result.accessToken!.tokenString, rawData: result);
+  } else {
+    throw SupaAuthException('No id token found');
+  }
+}
+catch(e){
+  throw SupaAuthException(e.toString());
+}
+  }
+
+  @override
+  OAuthProvider get oAuthProvider => OAuthProvider.facebook;
+}
+
+===== C:\flutter_projects\supa_helper\lib\src\service\authentication\social_media_providers\supa_google_provider.dart =====
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:supa_helper/src/errors/supa_exception.dart';
+import 'package:supa_helper/src/service/authentication/supa_auth_social_media.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../../models/supa_login_result.dart';
+
+class SupaGoogleProvider implements SupaSocialMediaAuth<GoogleSignInAuthentication> {
+  final String? clientId ;
+  final String? serverClientId ;
+  final String? nonce ;
+   final String? hostedDomain ;
+   final List<String>scopes ;
+   SupaGoogleProvider({this.clientId, this.scopes = const ['email', 'profile'],this.hostedDomain, this.nonce, this.serverClientId}){
+     init() ;
+   }
+
+   Future<void>init()async{
+    await GoogleSignIn.instance.initialize(
+       clientId: clientId,
+       hostedDomain: hostedDomain,
+       nonce: nonce,
+       serverClientId: serverClientId,
+     ) ;
+   }
+
+   @override
+  Future<SupaAuthResult<GoogleSignInAuthentication>> signIn() async{
+try{
+  final GoogleSignIn google = GoogleSignIn.instance ;
+  final googleUser = await google.authenticate(scopeHint: scopes);
+  final googleAuth = googleUser.authentication;
+  final idToken = googleAuth.idToken;
+  if (idToken == null) {
+    throw SupaAuthException('No id token found');
+  }
+  return SupaAuthResult<GoogleSignInAuthentication>(idToken: idToken, rawData: googleAuth);
+}on GoogleSignInException catch (e){
+  throw SupaAuthException(e.code.name);
+} catch(e){
+  throw SupaAuthException(e.toString());
+}
+  }
+
+  @override
+  OAuthProvider get oAuthProvider => OAuthProvider.google;
+}
+
+===== C:\flutter_projects\supa_helper\lib\src\service\database\supa_database.dart =====
+// ignore_for_file: non_constant_identifier_names
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../errors/supa_exception.dart';
+
+/// A helper class that simplifies CRUD database operations with Supabase.
+final class SupaDatabase {
+  final PostgrestClient _client;
+  const SupaDatabase(this._client);
+
+  /// Fetches multiple rows from [table].
+  /// Use [filter] for filtering, ordering, or pagination.
+  Future<List<Map<String, dynamic>>> GET({
+    required String table,
+    String? select,
+    PostgrestFilterBuilder<PostgrestList> Function(
+        PostgrestFilterBuilder<PostgrestList>,
+        )? filter,
+  }) async {
+    try {
+      final query = _client.from(table).select(select ?? "*");
+      return List<Map<String, dynamic>>.from(
+        await (filter != null ? filter(query) : query),
+      );
+    } on PostgrestException catch (e) {
+      throw SupaDatabaseException(e.message);
+    } catch (e) {
+      throw SupaDatabaseException(e.toString());
+    }
+  }
+
+  /// Fetches a single row from [table]. Returns `{}` if not found.
+  Future<Map<String, dynamic>> GET_SINGLE({
+    required String table,
+    String? select,
+    required PostgrestFilterBuilder<PostgrestList> Function(
+        PostgrestFilterBuilder<PostgrestList>,
+        ) filter,
+  }) async {
+    try {
+      final query = _client.from(table).select(select ?? "*");
+      return await filter(query).maybeSingle() ?? {};
+    } on PostgrestException catch (e) {
+      throw SupaDatabaseException(e.message);
+    } catch (e) {
+      throw SupaDatabaseException(e.toString());
+    }
+  }
+
+  /// Inserts a single row into [table]. Returns the inserted row or `{}`.
+  Future<Map<String, dynamic>> INSERT({
+    required String table,
+    required Map<String, dynamic> data,
+    String? select,
+  }) async {
+    try {
+      return await _client
+          .from(table)
+          .insert(data)
+          .select(select ?? "*")
+          .maybeSingle() ??
+          {};
+    } on PostgrestException catch (e) {
+      throw SupaDatabaseException(e.message);
+    } catch (e) {
+      throw SupaDatabaseException(e.toString());
+    }
+  }
+
+  /// Inserts multiple rows into [table]. Returns the inserted rows.
+  Future<List<Map<String, dynamic>>> INSERT_MANY({
+    required String table,
+    required List<Map<String, dynamic>> data,
+    String? select,
+  }) async {
+    try {
+      return await _client.from(table).insert(data).select(select ?? "*");
+    } on PostgrestException catch (e) {
+      throw SupaDatabaseException(e.message);
+    } catch (e) {
+      throw SupaDatabaseException(e.toString());
+    }
+  }
+
+  /// Inserts or updates a row in [table] based on the primary key.
+  Future<Map<String, dynamic>> UPSERT({
+    required String table,
+    required Map<String, dynamic> data,
+    String? select,
+  }) async {
+    try {
+      return await _client
+          .from(table)
+          .upsert(data)
+          .select(select ?? "*")
+          .maybeSingle() ??
+          {};
+    } on PostgrestException catch (e) {
+      throw SupaDatabaseException(e.message);
+    } catch (e) {
+      throw SupaDatabaseException(e.toString());
+    }
+  }
+
+  /// Updates rows in [table] where [column] equals [value].
+  Future<Map<String, dynamic>> UPDATE({
+    required String table,
+    required Map<String, dynamic> data,
+    required String column,
+    required dynamic value,
+    String? select,
+  }) async {
+    try {
+      return await _client
+          .from(table)
+          .update(data)
+          .eq(column, value)
+          .select(select ?? "*")
+          .maybeSingle() ??
+          {};
+    } on PostgrestException catch (e) {
+      throw SupaDatabaseException(e.message);
+    } catch (e) {
+      throw SupaDatabaseException(e.toString());
+    }
+  }
+
+  /// Deletes rows from [table] where [column] equals [value].
+  Future<void> DELETE({
+    required String table,
+    required String column,
+    required dynamic value,
+  }) async {
+    try {
+      await _client.from(table).delete().eq(column, value);
+    } on PostgrestException catch (e) {
+      throw SupaDatabaseException(e.message);
+    } catch (e) {
+      throw SupaDatabaseException(e.toString());
+    }
+  }
+
+  /// Calls a Postgres function [function] with optional [params].
+  Future<dynamic> RPC({
+    required String function,
+    Map<String, dynamic>? params,
+  }) async {
+    try {
+      return await _client.rpc(function, params: params);
+    } on PostgrestException catch (e) {
+      throw SupaDatabaseException(e.message);
+    } catch (e) {
+      throw SupaDatabaseException(e.toString());
+    }
+  }
+
+  /// Returns the row count of [table]. Use [filter] to count specific rows.
+  Future<int> COUNT({
+    required String table,
+    CountOption countOption = CountOption.exact,
+    PostgrestFilterBuilder<int> Function(
+        PostgrestFilterBuilder<int>,
+        )? filter,
+  }) async {
+    try {
+      final query = _client.from(table).count(countOption);
+      return filter != null ? await filter(query) : await query;
+    } on PostgrestException catch (e) {
+      throw SupaDatabaseException(e.message);
+    } catch (e) {
+      throw SupaDatabaseException(e.toString());
+    }
+  }
+}
+
+===== C:\flutter_projects\supa_helper\lib\src\service\realtime\supa_real_time.dart =====
+import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../errors/supa_exception.dart';
+
+/// Callback triggered when a Postgres change event occurs.
+typedef RealtimeCallback = void Function(PostgresChangePayload payload);
+
+/// Manages Supabase Realtime subscriptions for Postgres changes.
+final class SupaRealTime {
+  final Map<String, RealtimeChannel> _channels = {};
+  final RealtimeClient _client;
+  SupaRealTime(this._client);
+
+  /// Subscribes to changes on a Postgres [table].
+  /// If a channel with [channelName] already exists, it will be replaced.
+  /// Use [filter] to listen to specific rows only.
+  ///
+  /// Throws [SupaRealtimeException] if the subscription fails.
+  void subscribeToTable({
+    required String channelName,
+    required String schema,
+    required String table,
+    required RealtimeCallback callback,
+    PostgresChangeEvent event = PostgresChangeEvent.all,
+    PostgresChangeFilter? filter,
+    void Function(SupaRealtimeException)? onError,
+  }) {
+    try {
+      if (_channels.containsKey(channelName)) unsubscribe(channelName);
+
+      final channel = _client
+          .channel(channelName)
+          .onPostgresChanges(
+        event: event,
+        schema: schema,
+        table: table,
+        filter: filter,
+        callback: callback,
+      )
+          .subscribe((status, error) {
+        if (error != null) {
+          final exception = SupaRealtimeException(error.toString());
+          debugPrint('[$channelName] error: $error');
+          onError?.call(exception);
+        }
+      });
+
+      _channels[channelName] = channel;
+    } catch (e) {
+      throw SupaRealtimeException(e.toString());
+    }
+  }
+
+  /// Removes the subscription for [channelName].
+  void unsubscribe(String channelName) {
+    try {
+      final channel = _channels.remove(channelName);
+      if (channel != null) _client.removeChannel(channel);
+    } catch (e) {
+      throw SupaRealtimeException(e.toString());
+    }
+  }
+
+  /// Removes all active subscriptions.
+  void unsubscribeAll() {
+    try {
+      for (var channel in _channels.values) {
+        _client.removeChannel(channel);
+      }
+      _channels.clear();
+    } catch (e) {
+      throw SupaRealtimeException(e.toString());
+    }
+  }
+
+  /// Returns `true` if [channelName] is currently subscribed.
+  bool isSubscribed(String channelName) => _channels.containsKey(channelName);
+
+  /// Returns the number of active subscriptions.
+  int get activeChannelsCount => _channels.length;
+
+  /// Disposes all active subscriptions. Call this when the service is no longer needed.
+  void dispose() => unsubscribeAll();
+}
+
+===== C:\flutter_projects\supa_helper\lib\src\service\storage\supa_storage.dart =====
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../errors/supa_exception.dart';
+
+final class SupaStorage {
+  final SupabaseStorageClient storage;
+  const SupaStorage(this.storage);
+
+  // ───────────────────────── Upload ─────────────────────────
+
+  /// Uploads a [File] to `[folderName]/[prefix][timestamp]` and returns its public URL.
+  Future<String> uploadAndGetUrl(
+      File file, {
+        required String bucketName,
+        required String folderName,
+        String prefix = "IMG",
+        bool upsert = true,
+      }) async {
+    try {
+      final fileName = "$prefix${DateTime.now().millisecondsSinceEpoch}";
+      final filePath = '$folderName/$fileName';
+      await storage.from(bucketName).upload(filePath, file, fileOptions: FileOptions(upsert: upsert));
+      return storage.from(bucketName).getPublicUrl(filePath);
+    } on StorageException catch (e) {
+      throw SupaStorageException(e.message);
+    } catch (e) {
+      throw SupaStorageException(e.toString());
+    }
+  }
+
+  /// Uploads raw [Uint8List] bytes with the given [mimeType] and returns its public URL.
+  Future<String> uploadBytesAndGetUrl(
+      Uint8List bytes, {
+        required String bucketName,
+        required String folderName,
+        required String mimeType,
+        String prefix = "FILE",
+        bool upsert = true,
+      }) async {
+    try {
+      final fileName = "$prefix${DateTime.now().millisecondsSinceEpoch}";
+      final filePath = '$folderName/$fileName';
+      await storage.from(bucketName).uploadBinary(
+        filePath,
+        bytes,
+        fileOptions: FileOptions(upsert: upsert, contentType: mimeType),
+      );
+      return storage.from(bucketName).getPublicUrl(filePath);
+    } on StorageException catch (e) {
+      throw SupaStorageException(e.message);
+    } catch (e) {
+      throw SupaStorageException(e.toString());
+    }
+  }
+
+  // ───────────────────────── Download ─────────────────────────
+
+  /// Downloads a file and returns its content as [Uint8List].
+  Future<Uint8List> downloadFile({
+    required String bucketName,
+    required String filePath,
+  }) async {
+    try {
+      return await storage.from(bucketName).download(filePath);
+    } on StorageException catch (e) {
+      throw SupaStorageException(e.message);
+    } catch (e) {
+      throw SupaStorageException(e.toString());
+    }
+  }
+
+  /// Downloads a file and saves it directly to the given [destination] [File].
+  Future<void> downloadToFile({
+    required String bucketName,
+    required String filePath,
+    required File destination,
+  }) async {
+    try {
+      final bytes = await storage.from(bucketName).download(filePath);
+      await destination.writeAsBytes(bytes);
+    } on StorageException catch (e) {
+      throw SupaStorageException(e.message);
+    } catch (e) {
+      throw SupaStorageException(e.toString());
+    }
+  }
+
+  // ───────────────────────── Delete ─────────────────────────
+
+  /// Deletes a single file at [filePath] from the bucket.
+  Future<void> deleteFile({
+    required String bucketName,
+    required String filePath,
+  }) async {
+    try {
+      await storage.from(bucketName).remove([filePath]);
+    } on StorageException catch (e) {
+      throw SupaStorageException(e.message);
+    } catch (e) {
+      throw SupaStorageException(e.toString());
+    }
+  }
+
+  /// Deletes multiple files at once from the bucket.
+  Future<void> deleteFiles({
+    required String bucketName,
+    required List<String> filePaths,
+  }) async {
+    try {
+      await storage.from(bucketName).remove(filePaths);
+    } on StorageException catch (e) {
+      throw SupaStorageException(e.message);
+    } catch (e) {
+      throw SupaStorageException(e.toString());
+    }
+  }
+
+  // ───────────────────────── Move / Copy ─────────────────────────
+
+  /// Moves a file from [fromPath] to [toPath] within the same bucket.
+  Future<void> moveFile({
+    required String bucketName,
+    required String fromPath,
+    required String toPath,
+  }) async {
+    try {
+      await storage.from(bucketName).move(fromPath, toPath);
+    } on StorageException catch (e) {
+      throw SupaStorageException(e.message);
+    } catch (e) {
+      throw SupaStorageException(e.toString());
+    }
+  }
+
+  /// Copies a file from [fromPath] to [toPath] within the same bucket.
+  Future<void> copyFile({
+    required String bucketName,
+    required String fromPath,
+    required String toPath,
+  }) async {
+    try {
+      await storage.from(bucketName).copy(fromPath, toPath);
+    } on StorageException catch (e) {
+      throw SupaStorageException(e.message);
+    } catch (e) {
+      throw SupaStorageException(e.toString());
+    }
+  }
+
+  // ───────────────────────── List ─────────────────────────
+
+  /// Lists files inside [folderPath] with optional pagination and sorting.
+  Future<List<FileObject>> listFiles({
+    required String bucketName,
+    String folderPath = '',
+    int limit = 100,
+    int offset = 0,
+    SortBy sortBy = const SortBy(column: 'name', order: 'asc'),
+  }) async {
+    try {
+      return await storage.from(bucketName).list(
+        path: folderPath,
+        searchOptions: SearchOptions(limit: limit, offset: offset, sortBy: sortBy),
+      );
+    } on StorageException catch (e) {
+      throw SupaStorageException(e.message);
+    } catch (e) {
+      throw SupaStorageException(e.toString());
+    }
+  }
+
+  // ───────────────────────── URL Helpers ─────────────────────────
+
+  /// Returns the permanent public URL for a file.
+  String getPublicUrl({
+    required String bucketName,
+    required String filePath,
+  }) {
+    return storage.from(bucketName).getPublicUrl(filePath);
+  }
+
+  /// Generates a temporary signed URL that expires after [expiresInSeconds].
+  Future<String> createSignedUrl({
+    required String bucketName,
+    required String filePath,
+    required int expiresInSeconds,
+  }) async {
+    try {
+      return await storage.from(bucketName).createSignedUrl(filePath, expiresInSeconds);
+    } on StorageException catch (e) {
+      throw SupaStorageException(e.message);
+    } catch (e) {
+      throw SupaStorageException(e.toString());
+    }
+  }
+
+  /// Generates signed URLs for multiple files at once.
+  Future<List<SignedUrl>> createSignedUrls({
+    required String bucketName,
+    required List<String> filePaths,
+    required int expiresInSeconds,
+  }) async {
+    try {
+      return await storage.from(bucketName).createSignedUrls(filePaths, expiresInSeconds);
+    } on StorageException catch (e) {
+      throw SupaStorageException(e.message);
+    } catch (e) {
+      throw SupaStorageException(e.toString());
+    }
+  }
+
+  // ───────────────────────── Bucket Management ─────────────────────────
+
+  /// Creates a new bucket with optional visibility and file restrictions.
+  Future<void> createBucket(
+      String bucketName, {
+        bool isPublic = false,
+        int? fileSizeLimit,
+        List<String>? allowedMimeTypes,
+      }) async {
+    try {
+      await storage.createBucket(
+        bucketName,
+        BucketOptions(
+          public: isPublic,
+          fileSizeLimit: fileSizeLimit?.toString(),
+          allowedMimeTypes: allowedMimeTypes,
+        ),
+      );
+    } on StorageException catch (e) {
+      throw SupaStorageException(e.message);
+    } catch (e) {
+      throw SupaStorageException(e.toString());
+    }
+  }
+
+  /// Deletes all files inside the bucket without deleting the bucket itself.
+  Future<void> emptyBucket(String bucketName) async {
+    try {
+      await storage.emptyBucket(bucketName);
+    } on StorageException catch (e) {
+      throw SupaStorageException(e.message);
+    } catch (e) {
+      throw SupaStorageException(e.toString());
+    }
+  }
+
+  /// Permanently deletes the bucket and all its contents.
+  Future<void> deleteBucket(String bucketName) async {
+    try {
+      await storage.deleteBucket(bucketName);
+    } on StorageException catch (e) {
+      throw SupaStorageException(e.message);
+    } catch (e) {
+      throw SupaStorageException(e.toString());
+    }
+  }
+
+  /// Returns a list of all available buckets.
+  Future<List<Bucket>> listBuckets() async {
+    try {
+      return await storage.listBuckets();
+    } on StorageException catch (e) {
+      throw SupaStorageException(e.message);
+    } catch (e) {
+      throw SupaStorageException(e.toString());
+    }
+  }
+
+  /// Fetches metadata for a single bucket by [bucketName].
+  Future<Bucket> getBucket(String bucketName) async {
+    try {
+      return await storage.getBucket(bucketName);
+    } on StorageException catch (e) {
+      throw SupaStorageException(e.message);
+    } catch (e) {
+      throw SupaStorageException(e.toString());
+    }
+  }
+}
+
+===== C:\flutter_projects\supa_helper\lib\supa_helper.dart =====
+library ;
+
+export 'src/supa.dart';
+export 'src/errors/supa_exception.dart';
+export 'src/models/supa_login_result.dart';
+export 'src/service/authentication/social_media_providers/supa_apple_provider.dart';
+export 'src/service/authentication/social_media_providers/supa_facebook_provider.dart';
+export 'src/service/authentication/social_media_providers/supa_google_provider.dart';
+
+
+===== C:\flutter_projects\supa_helper\lib\src\supa.dart =====
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'service/authentication/supa_auth.dart';
+import 'service/database/supa_database.dart';
+import 'service/realtime/supa_real_time.dart';
+import 'service/storage/supa_storage.dart';
+
+/// Main entry point for Supabase helper package.
+/// Singleton wrapper around Supabase services.
+///
+/// Usage:
+/// ```dart
+/// await Supa.instance.init(
+///   url: 'YOUR_URL',
+///   anonKey: 'YOUR_ANON_KEY',
+/// );
+///
+/// await Supa.instance.auth.signIn(...);
+/// final data = await Supa.instance.database.GET;
+/// ```
+Supa get  supa => Supa.instance;
+class Supa {
+  Supa._();
+  /// Global singleton instance.
+  static final Supa instance = Supa._();
+  bool _initialized = false;
+  /// Initialize Supabase once at app startup.
+  Future<void> init({
+    required String url,
+    required String anonKey,
+    Map<String, String>? headers,
+    RealtimeClientOptions realtimeClientOptions =
+    const RealtimeClientOptions(),
+    PostgrestClientOptions postgrestOptions =
+    const PostgrestClientOptions(),
+    StorageClientOptions storageOptions =
+    const StorageClientOptions(),
+    FlutterAuthClientOptions authOptions =
+    const FlutterAuthClientOptions(),
+    Future<String?> Function()? accessToken,
+    bool? debug,
+  }) async {
+    if (_initialized) return;
+    await Supabase.initialize(
+      url: url,
+      anonKey: anonKey,
+      headers: headers,
+      realtimeClientOptions: realtimeClientOptions,
+      postgrestOptions: postgrestOptions,
+      storageOptions: storageOptions,
+      authOptions: authOptions,
+      accessToken: accessToken,
+      debug: debug,
+    );
+    _initialized = true;
+  }
+
+  /// Ensure package initialized before using services.
+  void _ensureInitialized() {
+    if (!_initialized || !Supabase.instance.isInitialized) {
+      throw Exception(
+        'Supa is not initialized.\n'
+            'Call supa.init(...) before using any service.',
+      );
+    }
+  }
+
+  /// Raw Supabase client.
+  SupabaseClient get client {
+    _ensureInitialized();
+    return Supabase.instance.client;
+  }
+
+  // =========================
+  // Lazy Services
+  // =========================
+  SupaAuth? _auth;
+  SupaDatabase? _database;
+  SupaStorage? _storage;
+  SupaRealTime? _realtime;
+
+  /// Authentication service.
+  SupaAuth get auth {
+    _ensureInitialized();
+    return _auth ??= SupaAuth(client.auth);
+  }
+  /// Database service.
+  SupaDatabase get database {
+    _ensureInitialized();
+    return _database ??= SupaDatabase(client.rest);
+  }
+  /// Storage service.
+  SupaStorage get storage {
+    _ensureInitialized();
+    return _storage ??= SupaStorage(client.storage);
+  }
+  /// Realtime service.
+  SupaRealTime get realtime {
+    _ensureInitialized();
+    return _realtime ??= SupaRealTime(client.realtime);
+  }
+
+  /// Reset cached services (optional).
+  /// Useful for logout / testing.
+  void reset() {
+    _auth = null;
+    _database = null;
+    _storage = null;
+    _realtime = null;
+  }
+}
+
+===== C:\flutter_projects\supa_helper\lib\src\errors\supa_exception.dart =====
+/// Base exception for all `supa_helper` errors.
+sealed class SupaException implements Exception {
+  final String message;
+  const SupaException(this.message);
+
+  @override
+  String toString() => '$runtimeType: $message';
+}
+
+/// Thrown when an authentication operation fails.
+class SupaAuthException extends SupaException {
+  const SupaAuthException(super.message);
+}
+
+/// Thrown when a database operation fails.
+class SupaDatabaseException extends SupaException {
+  const SupaDatabaseException(super.message);
+}
+
+/// Thrown when a storage operation fails.
+class SupaStorageException extends SupaException {
+  const SupaStorageException(super.message);
+}
+
+/// Thrown when a realtime subscription operation fails.
+class SupaRealtimeException extends SupaException {
+  const SupaRealtimeException(super.message);
+}
+
+===== C:\flutter_projects\supa_helper\lib\src\models\supa_login_result.dart =====
+class SupaAuthResult<T> {
+  final String idToken ;
+  final T? rawData ;
+  const SupaAuthResult({required this.idToken, this.rawData});
+}
+
+===== C:\flutter_projects\supa_helper\lib\src\service\authentication\supa_auth.dart =====
+import 'package:flutter/cupertino.dart';
+import 'package:supa_helper/src/service/authentication/supa_auth_social_media.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../errors/supa_exception.dart';
+import 'supa_auth_mobile.dart';
+
+/// Handles all authentication operations with Supabase.
+final class SupaAuth {
+  final GoTrueClient _client;
+  SupaAuth(this._client);
+
+  /// Access phone/OTP authentication methods.
+  SupaAuthMobileAuthHelper get phoneProvider => SupaAuthMobileAuthHelper(_client);
+
+  /// Signs in a user with [email] and [password].
+  Future<AuthResponse> signInWithEmailAndPassword({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      return await _client.signInWithPassword(password: password, email: email);
+    } on AuthException catch (e) {
+      throw SupaAuthException(e.message);
+    } catch (e) {
+      throw SupaAuthException(e.toString());
+    }
+  }
+
+  /// Creates a new user with [email] and [password].
+  /// [metaData] is saved in `auth.users.raw_user_meta_data`.
+  Future<AuthResponse> createUser({
+    required String email,
+    required String password,
+    String? emailRedirectTo,
+    Map<String, dynamic>? metaData,
+  }) async {
+    try {
+      return await _client.signUp(password: password, email: email, data: metaData);
+    } on AuthException catch (e) {
+      throw SupaAuthException(e.message);
+    } catch (e) {
+      throw SupaAuthException(e.toString());
+    }
+  }
+
+  /// Sends a password reset email to [email].
+  /// [redirect] is the URL to redirect to after reset.
+  Future<void> sendForgetPasswordEmail({
+    required String email,
+    String? redirect,
+  }) async {
+    try {
+      await _client.resetPasswordForEmail(email, redirectTo: redirect);
+    } on AuthException catch (e) {
+      throw SupaAuthException(e.message);
+    } catch (e) {
+      throw SupaAuthException(e.toString());
+    }
+  }
+
+  /// Updates the current user's [email], [password], or [data].
+  Future<void> updateUser({
+    String? password,
+    String? email,
+    Object? data,
+  }) async {
+    try {
+      await _client.updateUser(UserAttributes(password: password, email: email, data: data));
+    } on AuthException catch (e) {
+      throw SupaAuthException(e.message);
+    } catch (e) {
+      throw SupaAuthException(e.toString());
+    }
+  }
+
+  /// Signs in using a social media [provider] (e.g. Google, Facebook).
+  /// [onSuccess] returns the raw data from the provider typed as [T].
+  /// [T] can be -- `AuthorizationCredentialAppleID` for Apple, `GoogleSignInAuthentication` for Google, `LoginResult` for Facebook
+  Future<AuthResponse> socialMediaSignIn<T>(
+      SupaSocialMediaAuth provider,
+      ValueChanged<T>? onSuccess,
+      ) async {
+    try {
+      final response = await provider.signIn();
+      final result = await _client.signInWithIdToken(
+        idToken: response.idToken,
+        provider: provider.oAuthProvider,
+      );
+      if (result.session != null) onSuccess?.call(response.rawData);
+      return result;
+    } on AuthException catch (e) {
+      throw SupaAuthException(e.message);
+    } catch (e) {
+      throw SupaAuthException(e.toString());
+    }
+  }
+}
+
+===== C:\flutter_projects\supa_helper\lib\src\service\authentication\supa_auth_mobile.dart =====
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+class SupaAuthMobileAuthHelper {
+final GoTrueClient _client ;
+ const SupaAuthMobileAuthHelper(this._client);
+  /// send otp to phone number
+  Future<void> sendOtp({
+    String? phone,
+     OtpChannel channel = OtpChannel.sms,
+    Map<String, dynamic>? data,
+    // if true will create new user if not exist
+    bool createUser = true,
+    String? captchaToken,
+  }) async {
+    await _client.signInWithOtp(
+      phone: phone,
+      channel: channel,
+      data: data,
+      shouldCreateUser: createUser,
+      captchaToken: captchaToken,
+    );
+  }
+  /// verify otp
+  Future<AuthResponse> verifyOtp({
+    required String phone,
+    required String otp,
+    OtpType type = OtpType.sms,
+    String? captchaToken,
+    String? tokenHash
+  }) async {
+    return await _client.verifyOTP(
+        phone: phone, token: otp, type: type,
+      captchaToken: captchaToken,
+      tokenHash: tokenHash
+    );
+  }
+
+
+}
+
+===== C:\flutter_projects\supa_helper\lib\src\service\authentication\supa_auth_social_media.dart =====
+import 'package:supa_helper/src/models/supa_login_result.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+abstract class SupaSocialMediaAuth<T> {
+
+  /// login and return id token
+  Future<SupaAuthResult<T>> signIn();
+  /// oAuth provider
+  OAuthProvider get oAuthProvider;
+
+}
+
+===== C:\flutter_projects\supa_helper\lib\src\service\authentication\social_media_providers\supa_apple_provider.dart =====
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'package:supa_helper/src/errors/supa_exception.dart';
+import 'package:supa_helper/src/service/authentication/supa_auth_social_media.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../../models/supa_login_result.dart';
+
+class SupaAppleProvider
+    implements SupaSocialMediaAuth<AuthorizationCredentialAppleID> {
+  final List<AppleIDAuthorizationScopes> scopes;
+  final WebAuthenticationOptions? webAuthenticationOptions;
+  final String? nonce;
+  final String? state;
+
+  SupaAppleProvider({
+    this.scopes = const [
+      AppleIDAuthorizationScopes.email,
+      AppleIDAuthorizationScopes.fullName,
+    ],
+    this.webAuthenticationOptions,
+    this.nonce,
+    this.state,
+  });
+
+  @override
+  OAuthProvider get oAuthProvider => OAuthProvider.apple;
+
+  @override
+  Future<SupaAuthResult<AuthorizationCredentialAppleID>> signIn() async {
+    try {
+      {
+        final cred = await SignInWithApple.getAppleIDCredential(
+          scopes: scopes,
+          nonce: nonce,
+          state: state,
+          webAuthenticationOptions: webAuthenticationOptions,
+        );
+        if (cred.identityToken != null) {
+          return SupaAuthResult<AuthorizationCredentialAppleID>(
+            idToken: cred.identityToken!,
+            rawData: cred,
+          );
+        } else {
+          throw SupaAuthException('No id token found');
+        }
+      }
+    } catch (e) {
+      throw SupaAuthException(e.toString());
+    }
+  }
+}
+
+===== C:\flutter_projects\supa_helper\lib\src\service\authentication\social_media_providers\supa_facebook_provider.dart =====
+import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
+import 'package:supa_helper/src/errors/supa_exception.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../models/supa_login_result.dart';
+import '../supa_auth_social_media.dart';
+
+///using config first read https://facebook.meedu.app/docs/7.x.x/intro/
+class SupaFacebookProvider implements SupaSocialMediaAuth<LoginResult> {
+  final List<String> scopes;
+  final LoginBehavior loginBehavior;
+  final LoginTracking loginTracking;
+  final String? nonce;
+
+  const SupaFacebookProvider({
+    this.loginBehavior = LoginBehavior.nativeWithFallback,
+    this.loginTracking = LoginTracking.limited,
+    this.nonce,
+    this.scopes = const ['email', 'public_profile'],
+  });
+
+  @override
+  Future<SupaAuthResult<LoginResult>> signIn() async {
+try{
+  final result = await FacebookAuth.instance.login(
+    permissions: scopes,
+    loginBehavior: loginBehavior,
+    loginTracking: loginTracking,
+    nonce: nonce,
+  );
+  // if login failed throw error
+  if (result.status == LoginStatus.success && result.accessToken != null) {
+    return SupaAuthResult<LoginResult>(idToken: result.accessToken!.tokenString, rawData: result);
+  } else {
+    throw SupaAuthException('No id token found');
+  }
+}
+catch(e){
+  throw SupaAuthException(e.toString());
+}
+  }
+
+  @override
+  OAuthProvider get oAuthProvider => OAuthProvider.facebook;
+}
+
+===== C:\flutter_projects\supa_helper\lib\src\service\authentication\social_media_providers\supa_google_provider.dart =====
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:supa_helper/src/errors/supa_exception.dart';
+import 'package:supa_helper/src/service/authentication/supa_auth_social_media.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../../models/supa_login_result.dart';
+
+class SupaGoogleProvider implements SupaSocialMediaAuth<GoogleSignInAuthentication> {
+  final String? clientId ;
+  final String? serverClientId ;
+  final String? nonce ;
+   final String? hostedDomain ;
+   final List<String>scopes ;
+   SupaGoogleProvider({this.clientId, this.scopes = const ['email', 'profile'],this.hostedDomain, this.nonce, this.serverClientId}){
+     init() ;
+   }
+
+   Future<void>init()async{
+    await GoogleSignIn.instance.initialize(
+       clientId: clientId,
+       hostedDomain: hostedDomain,
+       nonce: nonce,
+       serverClientId: serverClientId,
+     ) ;
+   }
+
+   @override
+  Future<SupaAuthResult<GoogleSignInAuthentication>> signIn() async{
+try{
+  final GoogleSignIn google = GoogleSignIn.instance ;
+  final googleUser = await google.authenticate(scopeHint: scopes);
+  final googleAuth = googleUser.authentication;
+  final idToken = googleAuth.idToken;
+  if (idToken == null) {
+    throw SupaAuthException('No id token found');
+  }
+  return SupaAuthResult<GoogleSignInAuthentication>(idToken: idToken, rawData: googleAuth);
+}on GoogleSignInException catch (e){
+  throw SupaAuthException(e.code.name);
+} catch(e){
+  throw SupaAuthException(e.toString());
+}
+  }
+
+  @override
+  OAuthProvider get oAuthProvider => OAuthProvider.google;
+}
+
+===== C:\flutter_projects\supa_helper\lib\src\service\database\supa_database.dart =====
+// ignore_for_file: non_constant_identifier_names
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../errors/supa_exception.dart';
+
+/// A helper class that simplifies CRUD database operations with Supabase.
+final class SupaDatabase {
+  final PostgrestClient _client;
+  const SupaDatabase(this._client);
+
+  /// Fetches multiple rows from [table].
+  /// Use [filter] for filtering, ordering, or pagination.
+  Future<List<Map<String, dynamic>>> GET({
+    required String table,
+    String? select,
+    PostgrestFilterBuilder<PostgrestList> Function(
+        PostgrestFilterBuilder<PostgrestList>,
+        )? filter,
+  }) async {
+    try {
+      final query = _client.from(table).select(select ?? "*");
+      return List<Map<String, dynamic>>.from(
+        await (filter != null ? filter(query) : query),
+      );
+    } on PostgrestException catch (e) {
+      throw SupaDatabaseException(e.message);
+    } catch (e) {
+      throw SupaDatabaseException(e.toString());
+    }
+  }
+
+  /// Fetches a single row from [table]. Returns `{}` if not found.
+  Future<Map<String, dynamic>> GET_SINGLE({
+    required String table,
+    String? select,
+    required PostgrestFilterBuilder<PostgrestList> Function(
+        PostgrestFilterBuilder<PostgrestList>,
+        ) filter,
+  }) async {
+    try {
+      final query = _client.from(table).select(select ?? "*");
+      return await filter(query).maybeSingle() ?? {};
+    } on PostgrestException catch (e) {
+      throw SupaDatabaseException(e.message);
+    } catch (e) {
+      throw SupaDatabaseException(e.toString());
+    }
+  }
+
+  /// Inserts a single row into [table]. Returns the inserted row or `{}`.
+  Future<Map<String, dynamic>> INSERT({
+    required String table,
+    required Map<String, dynamic> data,
+    String? select,
+  }) async {
+    try {
+      return await _client
+          .from(table)
+          .insert(data)
+          .select(select ?? "*")
+          .maybeSingle() ??
+          {};
+    } on PostgrestException catch (e) {
+      throw SupaDatabaseException(e.message);
+    } catch (e) {
+      throw SupaDatabaseException(e.toString());
+    }
+  }
+
+  /// Inserts multiple rows into [table]. Returns the inserted rows.
+  Future<List<Map<String, dynamic>>> INSERT_MANY({
+    required String table,
+    required List<Map<String, dynamic>> data,
+    String? select,
+  }) async {
+    try {
+      return await _client.from(table).insert(data).select(select ?? "*");
+    } on PostgrestException catch (e) {
+      throw SupaDatabaseException(e.message);
+    } catch (e) {
+      throw SupaDatabaseException(e.toString());
+    }
+  }
+
+  /// Inserts or updates a row in [table] based on the primary key.
+  Future<Map<String, dynamic>> UPSERT({
+    required String table,
+    required Map<String, dynamic> data,
+    String? select,
+  }) async {
+    try {
+      return await _client
+          .from(table)
+          .upsert(data)
+          .select(select ?? "*")
+          .maybeSingle() ??
+          {};
+    } on PostgrestException catch (e) {
+      throw SupaDatabaseException(e.message);
+    } catch (e) {
+      throw SupaDatabaseException(e.toString());
+    }
+  }
+
+  /// Updates rows in [table] where [column] equals [value].
+  Future<Map<String, dynamic>> UPDATE({
+    required String table,
+    required Map<String, dynamic> data,
+    required String column,
+    required dynamic value,
+    String? select,
+  }) async {
+    try {
+      return await _client
+          .from(table)
+          .update(data)
+          .eq(column, value)
+          .select(select ?? "*")
+          .maybeSingle() ??
+          {};
+    } on PostgrestException catch (e) {
+      throw SupaDatabaseException(e.message);
+    } catch (e) {
+      throw SupaDatabaseException(e.toString());
+    }
+  }
+
+  /// Deletes rows from [table] where [column] equals [value].
+  Future<void> DELETE({
+    required String table,
+    required String column,
+    required dynamic value,
+  }) async {
+    try {
+      await _client.from(table).delete().eq(column, value);
+    } on PostgrestException catch (e) {
+      throw SupaDatabaseException(e.message);
+    } catch (e) {
+      throw SupaDatabaseException(e.toString());
+    }
+  }
+
+  /// Calls a Postgres function [function] with optional [params].
+  Future<dynamic> RPC({
+    required String function,
+    Map<String, dynamic>? params,
+  }) async {
+    try {
+      return await _client.rpc(function, params: params);
+    } on PostgrestException catch (e) {
+      throw SupaDatabaseException(e.message);
+    } catch (e) {
+      throw SupaDatabaseException(e.toString());
+    }
+  }
+
+  /// Returns the row count of [table]. Use [filter] to count specific rows.
+  Future<int> COUNT({
+    required String table,
+    CountOption countOption = CountOption.exact,
+    PostgrestFilterBuilder<int> Function(
+        PostgrestFilterBuilder<int>,
+        )? filter,
+  }) async {
+    try {
+      final query = _client.from(table).count(countOption);
+      return filter != null ? await filter(query) : await query;
+    } on PostgrestException catch (e) {
+      throw SupaDatabaseException(e.message);
+    } catch (e) {
+      throw SupaDatabaseException(e.toString());
+    }
+  }
+}
+
+===== C:\flutter_projects\supa_helper\lib\src\service\realtime\supa_real_time.dart =====
+import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../errors/supa_exception.dart';
+
+/// Callback triggered when a Postgres change event occurs.
+typedef RealtimeCallback = void Function(PostgresChangePayload payload);
+
+/// Manages Supabase Realtime subscriptions for Postgres changes.
+final class SupaRealTime {
+  final Map<String, RealtimeChannel> _channels = {};
+  final RealtimeClient _client;
+  SupaRealTime(this._client);
+
+  /// Subscribes to changes on a Postgres [table].
+  /// If a channel with [channelName] already exists, it will be replaced.
+  /// Use [filter] to listen to specific rows only.
+  ///
+  /// Throws [SupaRealtimeException] if the subscription fails.
+  void subscribeToTable({
+    required String channelName,
+    required String schema,
+    required String table,
+    required RealtimeCallback callback,
+    PostgresChangeEvent event = PostgresChangeEvent.all,
+    PostgresChangeFilter? filter,
+    void Function(SupaRealtimeException)? onError,
+  }) {
+    try {
+      if (_channels.containsKey(channelName)) unsubscribe(channelName);
+
+      final channel = _client
+          .channel(channelName)
+          .onPostgresChanges(
+        event: event,
+        schema: schema,
+        table: table,
+        filter: filter,
+        callback: callback,
+      )
+          .subscribe((status, error) {
+        if (error != null) {
+          final exception = SupaRealtimeException(error.toString());
+          debugPrint('[$channelName] error: $error');
+          onError?.call(exception);
+        }
+      });
+
+      _channels[channelName] = channel;
+    } catch (e) {
+      throw SupaRealtimeException(e.toString());
+    }
+  }
+
+  /// Removes the subscription for [channelName].
+  void unsubscribe(String channelName) {
+    try {
+      final channel = _channels.remove(channelName);
+      if (channel != null) _client.removeChannel(channel);
+    } catch (e) {
+      throw SupaRealtimeException(e.toString());
+    }
+  }
+
+  /// Removes all active subscriptions.
+  void unsubscribeAll() {
+    try {
+      for (var channel in _channels.values) {
+        _client.removeChannel(channel);
+      }
+      _channels.clear();
+    } catch (e) {
+      throw SupaRealtimeException(e.toString());
+    }
+  }
+
+  /// Returns `true` if [channelName] is currently subscribed.
+  bool isSubscribed(String channelName) => _channels.containsKey(channelName);
+
+  /// Returns the number of active subscriptions.
+  int get activeChannelsCount => _channels.length;
+
+  /// Disposes all active subscriptions. Call this when the service is no longer needed.
+  void dispose() => unsubscribeAll();
+}
+
+===== C:\flutter_projects\supa_helper\lib\src\service\storage\supa_storage.dart =====
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../errors/supa_exception.dart';
+
+final class SupaStorage {
+  final SupabaseStorageClient storage;
+  const SupaStorage(this.storage);
+
+  // ───────────────────────── Upload ─────────────────────────
+
+  /// Uploads a [File] to `[folderName]/[prefix][timestamp]` and returns its public URL.
+  Future<String> uploadAndGetUrl(
+      File file, {
+        required String bucketName,
+        required String folderName,
+        String prefix = "IMG",
+        bool upsert = true,
+      }) async {
+    try {
+      final fileName = "$prefix${DateTime.now().millisecondsSinceEpoch}";
+      final filePath = '$folderName/$fileName';
+      await storage.from(bucketName).upload(filePath, file, fileOptions: FileOptions(upsert: upsert));
+      return storage.from(bucketName).getPublicUrl(filePath);
+    } on StorageException catch (e) {
+      throw SupaStorageException(e.message);
+    } catch (e) {
+      throw SupaStorageException(e.toString());
+    }
+  }
+
+  /// Uploads raw [Uint8List] bytes with the given [mimeType] and returns its public URL.
+  Future<String> uploadBytesAndGetUrl(
+      Uint8List bytes, {
+        required String bucketName,
+        required String folderName,
+        required String mimeType,
+        String prefix = "FILE",
+        bool upsert = true,
+      }) async {
+    try {
+      final fileName = "$prefix${DateTime.now().millisecondsSinceEpoch}";
+      final filePath = '$folderName/$fileName';
+      await storage.from(bucketName).uploadBinary(
+        filePath,
+        bytes,
+        fileOptions: FileOptions(upsert: upsert, contentType: mimeType),
+      );
+      return storage.from(bucketName).getPublicUrl(filePath);
+    } on StorageException catch (e) {
+      throw SupaStorageException(e.message);
+    } catch (e) {
+      throw SupaStorageException(e.toString());
+    }
+  }
+
+  // ───────────────────────── Download ─────────────────────────
+
+  /// Downloads a file and returns its content as [Uint8List].
+  Future<Uint8List> downloadFile({
+    required String bucketName,
+    required String filePath,
+  }) async {
+    try {
+      return await storage.from(bucketName).download(filePath);
+    } on StorageException catch (e) {
+      throw SupaStorageException(e.message);
+    } catch (e) {
+      throw SupaStorageException(e.toString());
+    }
+  }
+
+  /// Downloads a file and saves it directly to the given [destination] [File].
+  Future<void> downloadToFile({
+    required String bucketName,
+    required String filePath,
+    required File destination,
+  }) async {
+    try {
+      final bytes = await storage.from(bucketName).download(filePath);
+      await destination.writeAsBytes(bytes);
+    } on StorageException catch (e) {
+      throw SupaStorageException(e.message);
+    } catch (e) {
+      throw SupaStorageException(e.toString());
+    }
+  }
+
+  // ───────────────────────── Delete ─────────────────────────
+
+  /// Deletes a single file at [filePath] from the bucket.
+  Future<void> deleteFile({
+    required String bucketName,
+    required String filePath,
+  }) async {
+    try {
+      await storage.from(bucketName).remove([filePath]);
+    } on StorageException catch (e) {
+      throw SupaStorageException(e.message);
+    } catch (e) {
+      throw SupaStorageException(e.toString());
+    }
+  }
+
+  /// Deletes multiple files at once from the bucket.
+  Future<void> deleteFiles({
+    required String bucketName,
+    required List<String> filePaths,
+  }) async {
+    try {
+      await storage.from(bucketName).remove(filePaths);
+    } on StorageException catch (e) {
+      throw SupaStorageException(e.message);
+    } catch (e) {
+      throw SupaStorageException(e.toString());
+    }
+  }
+
+  // ───────────────────────── Move / Copy ─────────────────────────
+
+  /// Moves a file from [fromPath] to [toPath] within the same bucket.
+  Future<void> moveFile({
+    required String bucketName,
+    required String fromPath,
+    required String toPath,
+  }) async {
+    try {
+      await storage.from(bucketName).move(fromPath, toPath);
+    } on StorageException catch (e) {
+      throw SupaStorageException(e.message);
+    } catch (e) {
+      throw SupaStorageException(e.toString());
+    }
+  }
+
+  /// Copies a file from [fromPath] to [toPath] within the same bucket.
+  Future<void> copyFile({
+    required String bucketName,
+    required String fromPath,
+    required String toPath,
+  }) async {
+    try {
+      await storage.from(bucketName).copy(fromPath, toPath);
+    } on StorageException catch (e) {
+      throw SupaStorageException(e.message);
+    } catch (e) {
+      throw SupaStorageException(e.toString());
+    }
+  }
+
+  // ───────────────────────── List ─────────────────────────
+
+  /// Lists files inside [folderPath] with optional pagination and sorting.
+  Future<List<FileObject>> listFiles({
+    required String bucketName,
+    String folderPath = '',
+    int limit = 100,
+    int offset = 0,
+    SortBy sortBy = const SortBy(column: 'name', order: 'asc'),
+  }) async {
+    try {
+      return await storage.from(bucketName).list(
+        path: folderPath,
+        searchOptions: SearchOptions(limit: limit, offset: offset, sortBy: sortBy),
+      );
+    } on StorageException catch (e) {
+      throw SupaStorageException(e.message);
+    } catch (e) {
+      throw SupaStorageException(e.toString());
+    }
+  }
+
+  // ───────────────────────── URL Helpers ─────────────────────────
+
+  /// Returns the permanent public URL for a file.
+  String getPublicUrl({
+    required String bucketName,
+    required String filePath,
+  }) {
+    return storage.from(bucketName).getPublicUrl(filePath);
+  }
+
+  /// Generates a temporary signed URL that expires after [expiresInSeconds].
+  Future<String> createSignedUrl({
+    required String bucketName,
+    required String filePath,
+    required int expiresInSeconds,
+  }) async {
+    try {
+      return await storage.from(bucketName).createSignedUrl(filePath, expiresInSeconds);
+    } on StorageException catch (e) {
+      throw SupaStorageException(e.message);
+    } catch (e) {
+      throw SupaStorageException(e.toString());
+    }
+  }
+
+  /// Generates signed URLs for multiple files at once.
+  Future<List<SignedUrl>> createSignedUrls({
+    required String bucketName,
+    required List<String> filePaths,
+    required int expiresInSeconds,
+  }) async {
+    try {
+      return await storage.from(bucketName).createSignedUrls(filePaths, expiresInSeconds);
+    } on StorageException catch (e) {
+      throw SupaStorageException(e.message);
+    } catch (e) {
+      throw SupaStorageException(e.toString());
+    }
+  }
+
+  // ───────────────────────── Bucket Management ─────────────────────────
+
+  /// Creates a new bucket with optional visibility and file restrictions.
+  Future<void> createBucket(
+      String bucketName, {
+        bool isPublic = false,
+        int? fileSizeLimit,
+        List<String>? allowedMimeTypes,
+      }) async {
+    try {
+      await storage.createBucket(
+        bucketName,
+        BucketOptions(
+          public: isPublic,
+          fileSizeLimit: fileSizeLimit?.toString(),
+          allowedMimeTypes: allowedMimeTypes,
+        ),
+      );
+    } on StorageException catch (e) {
+      throw SupaStorageException(e.message);
+    } catch (e) {
+      throw SupaStorageException(e.toString());
+    }
+  }
+
+  /// Deletes all files inside the bucket without deleting the bucket itself.
+  Future<void> emptyBucket(String bucketName) async {
+    try {
+      await storage.emptyBucket(bucketName);
+    } on StorageException catch (e) {
+      throw SupaStorageException(e.message);
+    } catch (e) {
+      throw SupaStorageException(e.toString());
+    }
+  }
+
+  /// Permanently deletes the bucket and all its contents.
+  Future<void> deleteBucket(String bucketName) async {
+    try {
+      await storage.deleteBucket(bucketName);
+    } on StorageException catch (e) {
+      throw SupaStorageException(e.message);
+    } catch (e) {
+      throw SupaStorageException(e.toString());
+    }
+  }
+
+  /// Returns a list of all available buckets.
+  Future<List<Bucket>> listBuckets() async {
+    try {
+      return await storage.listBuckets();
+    } on StorageException catch (e) {
+      throw SupaStorageException(e.message);
+    } catch (e) {
+      throw SupaStorageException(e.toString());
+    }
+  }
+
+  /// Fetches metadata for a single bucket by [bucketName].
+  Future<Bucket> getBucket(String bucketName) async {
+    try {
+      return await storage.getBucket(bucketName);
+    } on StorageException catch (e) {
+      throw SupaStorageException(e.message);
+    } catch (e) {
+      throw SupaStorageException(e.toString());
+    }
+  }
+}
+

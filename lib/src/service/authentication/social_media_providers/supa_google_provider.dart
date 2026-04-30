@@ -13,7 +13,6 @@ class SupaGoogleProvider implements SupaSocialMediaAuth<GoogleSignInAuthenticati
    final List<String>scopes ;
    SupaGoogleProvider({this.clientId, this.scopes = const ['email', 'profile'],this.hostedDomain, this.nonce, this.serverClientId}) ;
    bool _isInitialized = false;
-
    Future<void>_init()async{
     await GoogleSignIn.instance.initialize(
        clientId: clientId,

@@ -25,9 +25,7 @@ final class SupaDatabaseImpl implements SupaDatabase {
   Future<Map<String, dynamic>> GET_SINGLE({
     required String table,
     String? select,
-    required PostgrestFilterBuilder<PostgrestList> Function(
-        PostgrestFilterBuilder<PostgrestList>,
-        ) filter,
+    required PostgrestTransformBuilder<PostgrestList> Function(PostgrestFilterBuilder<PostgrestList>) filter
   }) async
   {
     try {

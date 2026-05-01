@@ -15,9 +15,7 @@ abstract class SupaDatabase{
   Future<Map<String, dynamic>> GET_SINGLE({
     required String table,
     String? select,
-    required PostgrestFilterBuilder<PostgrestList> Function(
-        PostgrestFilterBuilder<PostgrestList>,
-        ) filter,
+    required PostgrestTransformBuilder<PostgrestList> Function(PostgrestFilterBuilder<PostgrestList>) filter
   })  ;
   /// Inserts a single row into [table]. Returns the inserted row or `{}`.
   Future<Map<String, dynamic>> INSERT({

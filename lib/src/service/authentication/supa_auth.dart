@@ -1,5 +1,4 @@
 import 'package:supa_helper/supa_helper.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'supa_auth_mobile.dart';
 

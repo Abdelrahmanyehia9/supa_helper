@@ -8,3 +8,4 @@
 * update ReadMe
 ## 0.0.4
 * update error handling
+* adding abstraction

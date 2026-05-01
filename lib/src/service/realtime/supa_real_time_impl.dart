@@ -1,6 +1,6 @@
 import 'package:supa_helper/src/errors/handle_error.dart';
+import 'package:supa_helper/src/service/realtime/supa_real_time.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'supa_real_time.dart';
 
 typedef RealtimeCallback = void Function(PostgresChangePayload payload);
 

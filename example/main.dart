@@ -1,4 +1,4 @@
-// ignore_for_file: unused_local_variable
+// ignore_for_file: unused_local_variable, avoid_redundant_argument_values
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -284,7 +284,7 @@ class GoogleAuth implements SupaSocialMediaAuth {
  @override
  Future<SocialAuthResult> signIn() async {
   // your google sign in logic
-  return SocialAuthResult(
+  return const SocialAuthResult(
    idToken: 'ID_TOKEN',
    accessToken: 'ACCESS_TOKEN',
    email: 'user@gmail.com',

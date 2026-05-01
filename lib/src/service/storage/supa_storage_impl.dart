@@ -1,10 +1,9 @@
 import 'dart:io';
 import 'dart:typed_data';
-
 import 'package:supa_helper/src/errors/handle_error.dart';
+import 'package:supa_helper/supa_helper.dart' show SupaStorage;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'supa_storage.dart';
 
 final class SupaStorageImpl implements SupaStorage{
 

@@ -2,10 +2,10 @@ import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:supa_helper/src/errors/handle_error.dart';
 import 'package:supa_helper/src/service/authentication/supa_auth.dart';
+import 'package:supa_helper/src/service/authentication/supa_auth_mobile.dart';
 import 'package:supa_helper/src/service/authentication/supa_auth_social_media.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:supa_helper/src/errors/supa_exception.dart';
-import 'supa_auth_mobile.dart';
 import 'package:supa_helper/src/models/supa_login_result.dart';
 
 final class SupaAuthImpl implements SupabaseAuth {

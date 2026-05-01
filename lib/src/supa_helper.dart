@@ -1,5 +1,6 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
+// ignore_for_file: always_use_package_imports
 
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'service/authentication/supa_auth_impl.dart';
 import 'service/database/supa_database_impl.dart';
 import 'service/realtime/supa_real_time_impl.dart';

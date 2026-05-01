@@ -1,6 +1,6 @@
+import 'package:supa_helper/src/service/authentication/supa_auth_mobile.dart';
 import 'package:supa_helper/supa_helper.dart';
 
-import 'supa_auth_mobile.dart';
 
 /// Handles all authentication operations with Supabase.
 abstract class SupabaseAuth{

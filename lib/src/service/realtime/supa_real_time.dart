@@ -1,6 +1,5 @@
+import 'package:supa_helper/src/service/realtime/supa_real_time_impl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
-import 'supa_real_time_impl.dart';
 
 abstract class SupaRealTime {
 

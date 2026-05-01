@@ -11,3 +11,7 @@
 * adding abstraction
 ## 0.0.5
 * adding example
+## 0.0.6
+* adding comments
+## 0.0.7
+* fix unused imports 

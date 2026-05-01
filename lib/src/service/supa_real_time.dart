@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../errors/supa_exception.dart';
+import '../errors/supa_exception.dart';
 
 /// Callback triggered when a Postgres change event occurs.
 typedef RealtimeCallback = void Function(PostgresChangePayload payload);

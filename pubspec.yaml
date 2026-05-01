@@ -11,9 +11,7 @@ environment:
 
 dependencies:
   supabase_flutter: ^2.12.0
-  google_sign_in: ^7.2.0
-  flutter_facebook_auth: ^7.1.6
-  sign_in_with_apple: ^7.0.1
+
 
   flutter:
     sdk: flutter

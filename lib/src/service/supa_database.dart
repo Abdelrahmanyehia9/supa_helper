@@ -1,6 +1,6 @@
 // ignore_for_file: non_constant_identifier_names
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../errors/supa_exception.dart';
+import '../errors/supa_exception.dart';
 
 /// A helper class that simplifies CRUD database operations with Supabase.
 final class SupaDatabase {

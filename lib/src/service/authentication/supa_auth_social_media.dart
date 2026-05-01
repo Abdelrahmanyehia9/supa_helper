@@ -1,11 +1,11 @@
-import 'package:supa_helper/src/models/supa_login_result.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supa_helper/src/models/supa_login_result.dart';
 
-abstract class SupaSocialMediaAuth<T> {
-
+/// to Add new Social Media Provider
+/// implement [SupaSocialMediaAuth]
+abstract class SupaSocialMediaAuth{
   /// login and return id token
-  Future<SupaAuthResult<T>> signIn();
+  Future<SocialAuthResult> signIn();
   /// oAuth provider
   OAuthProvider get oAuthProvider;
-
 }

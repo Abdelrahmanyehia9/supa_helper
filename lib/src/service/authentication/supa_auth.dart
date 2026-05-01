@@ -1,15 +1,15 @@
 import 'dart:async';
-
 import 'package:flutter/cupertino.dart';
 import 'package:supa_helper/src/service/authentication/supa_auth_social_media.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../errors/supa_exception.dart';
+import 'package:supa_helper/src/errors/supa_exception.dart';
 import 'supa_auth_mobile.dart';
+import 'package:supa_helper/src/models/supa_login_result.dart';
 
 /// Handles all authentication operations with Supabase.
 final class SupaAuth {
   final GoTrueClient _client;
-  SupaAuth(this._client);
+  const SupaAuth(this._client);
 
   /// Access phone/OTP authentication methods.
   SupaAuthMobileAuthHelper get phoneProvider => SupaAuthMobileAuthHelper(_client);
@@ -78,9 +78,9 @@ final class SupaAuth {
   /// Signs in using a social media [provider] (e.g. Google, Facebook).
   /// [onSuccess] returns the raw data from the provider typed as [T].
   /// [T] can be -- `AuthorizationCredentialAppleID` for Apple, `GoogleSignInAuthentication` for Google, `LoginResult` for Facebook
-  Future<AuthResponse> socialMediaSignIn<T>(
+  Future<AuthResponse> socialMediaSignIn(
       SupaSocialMediaAuth provider,
-      ValueChanged<T>? onSuccess,
+      ValueChanged<SocialAuthResult>? onSuccess,
       ) async {
     try {
       final response = await provider.signIn();
@@ -88,7 +88,7 @@ final class SupaAuth {
         idToken: response.idToken,
         provider: provider.oAuthProvider,
       );
-      if (result.session != null) onSuccess?.call(response.rawData);
+      if (result.session != null) onSuccess?.call(response);
       return result;
     } on AuthException catch (e) {
       throw SupaAuthException(e.message);

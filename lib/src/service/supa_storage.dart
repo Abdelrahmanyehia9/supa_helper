@@ -2,13 +2,12 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../errors/supa_exception.dart';
+import '../errors/supa_exception.dart';
 
 final class SupaStorage {
   final SupabaseStorageClient storage;
   const SupaStorage(this.storage);
 
-  // ───────────────────────── Upload ─────────────────────────
 
   /// Uploads a [File] to `[folderName]/[prefix][timestamp]` and returns its public URL.
   Future<String> uploadAndGetUrl(

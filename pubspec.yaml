@@ -1,6 +1,6 @@
 name: supa_helper
 description: "A clean and simple wrapper around Supabase for Flutter projects."
-version: 0.0.1
+version: 0.0.2
 homepage: https://github.com/Abdelrahmanyehia9/supa_helper.git
 repository: https://github.com/Abdelrahmanyehia9/supa_helper.git
 issue_tracker: https://github.com/Abdelrahmanyehia9/supa_helper/issues
@@ -11,8 +11,6 @@ environment:
 
 dependencies:
   supabase_flutter: ^2.12.0
-
-
   flutter:
     sdk: flutter
 

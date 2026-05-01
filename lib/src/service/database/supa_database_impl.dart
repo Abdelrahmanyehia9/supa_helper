@@ -9,9 +9,7 @@ final class SupaDatabaseImpl implements SupaDatabase {
   Future<List<Map<String, dynamic>>> GET({
     required String table,
     String? select,
-    PostgrestFilterBuilder<PostgrestList> Function(
-        PostgrestFilterBuilder<PostgrestList>,
-        )? filter,
+    PostgrestTransformBuilder<PostgrestList> Function(PostgrestFilterBuilder<PostgrestList>)? filter
   }) async
   {
     try {
@@ -63,7 +61,8 @@ final class SupaDatabaseImpl implements SupaDatabase {
     required String table,
     required List<Map<String, dynamic>> data,
     String? select,
-  }) async {
+  }) async
+  {
     try {
       return await _client.from(table).insert(data).select(select ?? "*");
     }  catch (e) {
@@ -72,35 +71,32 @@ final class SupaDatabaseImpl implements SupaDatabase {
   }
 
   @override
+  Future<Map<String, dynamic>> UPDATE({
+    required String table,
+    required Map<String, dynamic> data,
+    String? select,
+    String idColumn = 'id',
+    required String idValue,
+  }) async {
+    try {
+      final query = _client.from(table).update(data).eq(idColumn, idValue).select(select ?? "*");
+      return await query.maybeSingle() ?? {};
+    }
+      catch (e) {
+       e.handleError() ;
+    }
+  }
+  @override
   Future<Map<String, dynamic>> UPSERT({
     required String table,
     required Map<String, dynamic> data,
     String? select,
+    String idColumn = 'id',
+    required String idValue,
   }) async {
     try {
-      return await _client
-          .from(table)
-          .upsert(data)
-          .select(select ?? "*")
-          .maybeSingle() ??
-          {};
-    } catch (e) {
-       e.handleError() ;
-    }
-  }
-
-  @override
-  Future<Map<String, dynamic>> UPDATE({
-    required String table,
-    required Map<String, dynamic> data,
-    required PostgrestFilterBuilder<PostgrestList> Function(
-        PostgrestTransformBuilder<PostgrestList>,
-        ) filter,
-    String? select,
-  }) async {
-    try {
-      final query = _client.from(table).update(data).select(select ?? "*");
-      return await filter(query).maybeSingle() ?? {};
+      final query = _client.from(table).upsert(data).eq(idColumn, idValue).select(select ?? "*");
+      return await query.maybeSingle() ?? {};
     }
       catch (e) {
        e.handleError() ;
@@ -110,8 +106,8 @@ final class SupaDatabaseImpl implements SupaDatabase {
   @override
   Future<void> DELETE({
     required String table,
-    required PostgrestFilterBuilder<PostgrestList> Function(
-        PostgrestTransformBuilder<void>,
+    required PostgrestFilterBuilder<void> Function(
+        PostgrestFilterBuilder<void>,
         ) filter,
   }) async {
     try {

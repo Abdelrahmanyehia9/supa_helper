@@ -9,3 +9,5 @@
 ## 0.0.4
 * update error handling
 * adding abstraction
+## 0.0.5
+* adding example

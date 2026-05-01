@@ -36,15 +36,16 @@ abstract class SupaDatabase{
     required String table,
     required Map<String, dynamic> data,
     String? select,
+    String idColumn = 'id',
+    required String idValue,
   })  ;
   /// Updates rows in [table] where [column] equals [value].
   Future<Map<String, dynamic>> UPDATE({
     required String table,
     required Map<String, dynamic> data,
-    required PostgrestFilterBuilder<PostgrestList> Function(
-        PostgrestTransformBuilder<PostgrestList>,
-        ) filter,
     String? select,
+    String idColumn = 'id',
+    required String idValue,
   })  ;
   /// Deletes rows from [table] where [column] equals [value].
   Future<void> DELETE({

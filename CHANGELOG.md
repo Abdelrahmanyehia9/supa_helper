@@ -6,3 +6,5 @@
 * change socialMediaResponse model
 ## 0.0.3
 * update ReadMe
+## 0.0.4
+* update error handling

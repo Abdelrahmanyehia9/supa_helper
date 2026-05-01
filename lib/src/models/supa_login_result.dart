@@ -6,12 +6,13 @@ class SocialAuthResult {
   final String idToken;
   final String? email;
   final String? displayName;
-
-  SocialAuthResult({
+  final Map<String, dynamic>? metaData;
+  const SocialAuthResult({
     this.accessToken,
    required this.idToken,
     this.email,
     this.displayName,
+    this.metaData,
   });
 }
 

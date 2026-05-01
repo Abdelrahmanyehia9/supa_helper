@@ -1,9 +1,9 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'service/authentication/supa_auth.dart';
-import 'service/supa_database.dart';
-import 'service/supa_real_time.dart';
-import 'service/supa_storage.dart';
+import 'service/authentication/supa_auth_impl.dart';
+import 'service/database/supa_database_impl.dart';
+import 'service/realtime/supa_real_time_impl.dart';
+import 'service/storage/supa_storage_impl.dart';
 
 /// Main entry point for Supabase helper package.
 /// Singleton wrapper around Supabase services.
@@ -25,10 +25,10 @@ class SupaHelper {
   static final SupaHelper instance = SupaHelper._();
   bool _initialized = false;
 
-  SupaAuth? _auth;
-  SupaDatabase? _database;
-  SupaStorage? _storage;
-  SupaRealTime? _realtime;
+  SupaAuthImpl? _auth;
+  SupaDatabaseImpl? _database;
+  SupaStorageImpl? _storage;
+  SupaRealTimeImpl? _realtime;
 
   /// Initialize Supabase once at app startup.
   Future<void> init({
@@ -56,36 +56,16 @@ class SupaHelper {
     );
     _initialized = true;
   }
-
-  /// Ensure package is initialized before using services.
-  void _ensureInitialized() {
-    if (!_initialized) {
-      throw Exception(
-        'Supabase is not initialized.\n'
-            'Call SupaHelper.instance.init(...) before using any service.',
-      );
-    }
-  }
-
-  T _getService<T>(T? cached, T Function() create) {
-    _ensureInitialized();
-    return cached ??= create();
-  }
-
   /// Raw Supabase client.
-  SupabaseClient get client {
-    _ensureInitialized();
-    return Supabase.instance.client;
-  }
-
+  SupabaseClient get client => Supabase.instance.client;
   /// Authentication service.
-  SupaAuth get auth => _getService(_auth, () => SupaAuth(client.auth));
+  SupaAuthImpl get auth => _auth??  SupaAuthImpl(client.auth);
   /// Database service.
-  SupaDatabase get database => _getService(_database, () => SupaDatabase(client.rest));
+  SupaDatabaseImpl get database => _database ??  SupaDatabaseImpl(client.rest);
   /// Storage service.
-  SupaStorage get storage => _getService(_storage, () => SupaStorage(client.storage));
+  SupaStorageImpl get storage => _storage ??  SupaStorageImpl(client.storage);
   /// Realtime service.
-  SupaRealTime get realtime => _getService(_realtime, () => SupaRealTime(client.realtime));
+  SupaRealTimeImpl get realtime => _realtime ?? SupaRealTimeImpl(client.realtime) ;
   /// Reset all cached services and allow re-initialization.
   void reset() {
     _auth = null;

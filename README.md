@@ -1,55 +1,39 @@
 # supa_helper
 
-A Flutter package that provides a clean, simplified wrapper around [Supabase](https://supabase.com/) services — authentication, database, storage, and realtime — through a single singleton interface.
+A Flutter package that simplifies Supabase integration by wrapping its core services — Authentication, Database, Storage, and Realtime — into a clean, unified API.
 
 ---
 
 ## Features
 
-- 🔐 **Authentication** — Email/password, social sign-in (Google, Apple, Facebook), and phone OTP
-- 🗄️ **Database** — Simple CRUD helpers (`GET`, `INSERT`, `UPDATE`, `DELETE`, `UPSERT`, `RPC`, `COUNT`)
-- 📦 **Storage** — Upload, download, delete, move, copy files and manage buckets
-- 📡 **Realtime** — Subscribe to Postgres table changes with named channels
-- ⚡ **Lazy initialization** — Services are only created when first accessed
-- 🧱 **Typed exceptions** — Each service throws its own `SupaException` subclass
+- 🔐 **Authentication** — Email/password, OTP, and social media sign-in
+- 🗄️ **Database** — Simple CRUD operations with typed responses
+- 📦 **Storage** — Upload, download, manage files and buckets
+- 📡 **Realtime** — Subscribe to Postgres changes with ease
+- ⚠️ **Typed Exceptions** — Every service throws its own typed exception
 
 ---
 
 ## Installation
 
-Add the dependency to your `pubspec.yaml`:
-
 ```yaml
 dependencies:
   supa_helper:
-    path: ../supa_helper   # or your pub.dev / git reference
-```
-
-Then run:
-
-```bash
-flutter pub get
+    git:
+      url: https://github.com/YOUR_USERNAME/supa_helper.git
 ```
 
 ---
 
 ## Setup
 
-Initialize once at app startup, typically in `main.dart`:
-
 ```dart
 import 'package:supa_helper/supa_helper.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-
-  await supa.init(
-    url: 'YOUR_SUPABASE_URL',
-    anonKey: 'YOUR_SUPABASE_ANON_KEY',
-  );
-
-  runApp(const MyApp());
-}
+await SupaHelper.instance.init(
+  url: 'YOUR_SUPABASE_URL',
+  anonKey: 'YOUR_ANON_KEY',
+);
 ```
 
 ---
@@ -59,125 +43,149 @@ void main() async {
 ### Email & Password
 
 ```dart
+// Sign up
+await SupaHelper.instance.auth.createUser(
+  email: 'user@example.com',
+  password: 'password123',
+  metaData: {'name': 'John'},
+);
+
 // Sign in
-final response = await supa.auth.signInWithEmailAndPassword(
+await SupaHelper.instance.auth.signInWithEmailAndPassword(
   email: 'user@example.com',
   password: 'password123',
 );
 
-// Register
-final response = await supa.auth.createUser(
+// Sign out
+await SupaHelper.instance.auth.signOut();
+
+// Forget password
+await SupaHelper.instance.auth.sendForgetPasswordEmail(
   email: 'user@example.com',
-  password: 'password123',
-  metaData: {'name': 'John Doe'},
-);
-
-// Forgot password
-await supa.auth.sendForgetPasswordEmail(email: 'user@example.com');
-
-// Update user
-await supa.auth.updateUser(password: 'newPassword');
-```
-
-### Social Sign-In
-
-```dart
-// Google
-final response = await supa.auth.socialMediaSignIn<GoogleSignInAuthentication>(
-  SupaGoogleProvider(serverClientId: 'YOUR_SERVER_CLIENT_ID'),
-  (googleAuth) => print('Google raw data: $googleAuth'),
-);
-
-// Apple
-final response = await supa.auth.socialMediaSignIn<AuthorizationCredentialAppleID>(
-  SupaAppleProvider(),
-  (appleCred) => print('Apple raw data: $appleCred'),
-);
-
-// Facebook
-final response = await supa.auth.socialMediaSignIn<LoginResult>(
-  SupaFacebookProvider(),
-  (fbResult) => print('Facebook raw data: $fbResult'),
 );
 ```
 
-> For Facebook, follow the setup guide at https://facebook.meedu.app/docs/7.x.x/intro/
-
-### Phone OTP
+### OTP / Phone
 
 ```dart
 // Send OTP
-await supa.auth.phoneProvider.sendOtp(phone: '+1234567890');
+await SupaHelper.instance.auth.phoneProvider.sendOtp(
+  phone: '+201234567890',
+);
 
 // Verify OTP
-final response = await supa.auth.phoneProvider.verifyOtp(
-  phone: '+1234567890',
+await SupaHelper.instance.auth.phoneProvider.verifyOtp(
+  phone: '+201234567890',
   otp: '123456',
 );
+```
+
+### Social Media
+
+Implement `SupaSocialMediaAuth` for your provider:
+
+```dart
+class GoogleAuth implements SupaSocialMediaAuth {
+  @override
+  OAuthProvider get oAuthProvider => OAuthProvider.google;
+
+  @override
+  Future<SocialAuthResult> signIn() async {
+    // your google sign in logic
+    return SocialAuthResult(
+      idToken: 'ID_TOKEN',
+      accessToken: 'ACCESS_TOKEN',
+      email: 'user@gmail.com',
+    );
+  }
+}
+```
+
+Then pass it to `socialMediaSignIn`:
+
+```dart
+await SupaHelper.instance.auth.socialMediaSignIn(
+  GoogleAuth(),
+  (result) => print('Logged in: ${result.email}'),
+);
+```
+
+### Auth State Listener
+
+```dart
+final subscription = SupaHelper.instance.auth.setupAuthListener(
+  onSignedIn: (id) => print('Signed in: $id'),
+  onSignedOut: () => print('Signed out'),
+  onUserUpdated: (id) => print('User updated: $id'),
+  onInitialSession: () => print('Session restored'),
+  onError: (e) => print('Auth error: $e'),
+);
+
+// Cancel when no longer needed
+subscription.cancel();
 ```
 
 ---
 
 ## Database
 
-All methods map directly to common Supabase PostgREST operations.
-
 ```dart
-// Fetch multiple rows
-final users = await supa.database.GET(
+final db = SupaHelper.instance.database;
+
+// GET all
+final users = await db.GET(table: 'users');
+
+// GET with filter
+final admins = await db.GET(
   table: 'users',
-  filter: (q) => q.eq('active', true).order('created_at'),
+  filter: (q) => q.eq('role', 'admin'),
 );
 
-// Fetch a single row
-final user = await supa.database.GET_SINGLE(
+// GET single
+final user = await db.GET_SINGLE(
   table: 'users',
-  filter: (q) => q.eq('id', userId),
+  filter: (q) => q.eq('id', '123'),
 );
 
-// Insert
-final newUser = await supa.database.INSERT(
+// INSERT
+await db.INSERT(
   table: 'users',
-  data: {'name': 'Jane', 'email': 'jane@example.com'},
+  data: {'name': 'John', 'email': 'john@example.com'},
 );
 
-// Insert many
-final rows = await supa.database.INSERT_MANY(
-  table: 'products',
-  data: [{'name': 'A'}, {'name': 'B'}],
-);
-
-// Upsert
-await supa.database.UPSERT(
-  table: 'profiles',
-  data: {'id': userId, 'bio': 'Hello!'},
-);
-
-// Update
-await supa.database.UPDATE(
+// INSERT MANY
+await db.INSERT_MANY(
   table: 'users',
-  data: {'name': 'Updated Name'},
+  data: [
+    {'name': 'Alice'},
+    {'name': 'Bob'},
+  ],
+);
+
+// UPDATE
+await db.UPDATE(
+  table: 'users',
+  data: {'name': 'John Updated'},
   column: 'id',
-  value: userId,
+  value: '123',
 );
 
-// Delete
-await supa.database.DELETE(
+// UPSERT
+await db.UPSERT(
   table: 'users',
-  column: 'id',
-  value: userId,
+  data: {'id': '123', 'name': 'John'},
 );
 
-// Call a Postgres function
-final result = await supa.database.RPC(
-  function: 'my_function',
+// DELETE
+await db.DELETE(table: 'users', column: 'id', value: '123');
+
+// COUNT
+final count = await db.COUNT(table: 'users');
+
+// RPC
+final result = await db.RPC(
+  function: 'my_postgres_function',
   params: {'param1': 'value'},
-);
-
-// Count rows
-final count = await supa.database.COUNT(
-  table: 'orders',
-  filter: (q) => q.eq('status', 'pending'),
 );
 ```
 
@@ -186,77 +194,41 @@ final count = await supa.database.COUNT(
 ## Storage
 
 ```dart
-import 'dart:io';
+final storage = SupaHelper.instance.storage;
 
-// Upload a File and get its public URL
-final url = await supa.storage.uploadAndGetUrl(
-  File('/path/to/image.jpg'),
-  bucketName: 'avatars',
-  folderName: 'users',
-  prefix: 'AVATAR',
+// Upload file
+final url = await storage.uploadAndGetUrl(
+  file,
+  bucketName: 'images',
+  folderName: 'avatars',
 );
 
-// Upload raw bytes
-final url = await supa.storage.uploadBytesAndGetUrl(
+// Upload bytes
+final url = await storage.uploadBytesAndGetUrl(
   bytes,
-  bucketName: 'documents',
-  folderName: 'reports',
-  mimeType: 'application/pdf',
+  bucketName: 'images',
+  folderName: 'avatars',
+  mimeType: 'image/jpeg',
 );
 
-// Download a file
-final bytes = await supa.storage.downloadFile(
-  bucketName: 'avatars',
-  filePath: 'users/AVATAR123456',
+// Download
+final bytes = await storage.downloadFile(
+  bucketName: 'images',
+  filePath: 'avatars/IMG123',
 );
 
-// Download directly to a File
-await supa.storage.downloadToFile(
-  bucketName: 'avatars',
-  filePath: 'users/AVATAR123456',
-  destination: File('/local/path/file.jpg'),
+// Delete
+await storage.deleteFile(
+  bucketName: 'images',
+  filePath: 'avatars/IMG123',
 );
 
-// Get public URL
-final url = supa.storage.getPublicUrl(
-  bucketName: 'avatars',
-  filePath: 'users/AVATAR123456',
-);
-
-// Create a signed (temporary) URL
-final signedUrl = await supa.storage.createSignedUrl(
-  bucketName: 'documents',
-  filePath: 'reports/report.pdf',
+// Signed URL
+final signedUrl = await storage.createSignedUrl(
+  bucketName: 'images',
+  filePath: 'avatars/IMG123',
   expiresInSeconds: 3600,
 );
-
-// Delete a file
-await supa.storage.deleteFile(
-  bucketName: 'avatars',
-  filePath: 'users/AVATAR123456',
-);
-
-// Delete multiple files
-await supa.storage.deleteFiles(
-  bucketName: 'avatars',
-  filePaths: ['users/A', 'users/B'],
-);
-
-// Move / copy
-await supa.storage.moveFile(bucketName: 'docs', fromPath: 'a/file', toPath: 'b/file');
-await supa.storage.copyFile(bucketName: 'docs', fromPath: 'a/file', toPath: 'b/file');
-
-// List files in a folder
-final files = await supa.storage.listFiles(
-  bucketName: 'avatars',
-  folderPath: 'users',
-);
-
-// Bucket management
-await supa.storage.createBucket('my-bucket', isPublic: true);
-await supa.storage.emptyBucket('my-bucket');
-await supa.storage.deleteBucket('my-bucket');
-final buckets = await supa.storage.listBuckets();
 ```
 
 ---
@@ -264,98 +236,58 @@ final buckets = await supa.storage.listBuckets();
 ## Realtime
 
 ```dart
-// Subscribe to all changes on a table
-supa.realtime.subscribeToTable(
-  channelName: 'orders-channel',
+final realtime = SupaHelper.instance.realtime;
+
+// Subscribe
+realtime.subscribeToTable(
+  channelName: 'orders_channel',
   schema: 'public',
   table: 'orders',
-  callback: (payload) => print('Change: ${payload.newRecord}'),
+  event: PostgresChangeEvent.all,
+  callback: (payload) => print('Change: $payload'),
   onError: (e) => print('Error: $e'),
 );
 
-// Subscribe to a specific row
-supa.realtime.subscribeToTable(
-  channelName: 'my-order',
-  schema: 'public',
-  table: 'orders',
-  event: PostgresChangeEvent.update,
-  filter: PostgresChangeFilter(
-    type: PostgresChangeFilterType.eq,
-    column: 'id',
-    value: orderId,
-  ),
-  callback: (payload) => print('Updated: ${payload.newRecord}'),
-);
-
-// Unsubscribe a single channel
-supa.realtime.unsubscribe('orders-channel');
+// Unsubscribe
+realtime.unsubscribe('orders_channel');
 
 // Unsubscribe all
-supa.realtime.unsubscribeAll();
+realtime.unsubscribeAll();
 
-// Check subscription status
-final isActive = supa.realtime.isSubscribed('orders-channel');
-final count = supa.realtime.activeChannelsCount;
+// Check status
+print(realtime.isSubscribed('orders_channel'));
+print(realtime.activeChannelsCount);
 ```
 
 ---
 
 ## Error Handling
 
-Every service throws a typed subclass of `SupaException`:
+Every service throws a typed exception:
 
-| Exception | Thrown by |
-|---|---|
-| `SupaAuthException` | `supa.auth` |
-| `SupaDatabaseException` | `supa.database` |
-| `SupaStorageException` | `supa.storage` |
-| `SupaRealtimeException` | `supa.realtime` |
+| Service    | Exception                |
+|------------|--------------------------|
+| Auth       | `SupaAuthException`      |
+| Database   | `SupaDatabaseException`  |
+| Storage    | `SupaStorageException`   |
+| Realtime   | `SupaRealtimeException`  |
 
 ```dart
 try {
-  await supa.auth.signInWithEmailAndPassword(
+  await SupaHelper.instance.auth.signInWithEmailAndPassword(
     email: 'user@example.com',
-    password: 'wrong',
+    password: 'wrong_password',
   );
 } on SupaAuthException catch (e) {
-  print('Auth error: ${e.message}');
-} on SupaException catch (e) {
-  print('Supa error: ${e.message}');
+  print('Auth error: $e');
 }
 ```
 
 ---
 
-## Custom Social Provider
-
-Implement `SupaSocialMediaAuth<T>` to add your own OAuth provider:
+## Reset
 
 ```dart
-class MyCustomProvider implements SupaSocialMediaAuth<MyCredential> {
-  @override
-  OAuthProvider get oAuthProvider => OAuthProvider.github;
-
-  @override
-  Future<SupaAuthResult<MyCredential>> signIn() async {
-    // your sign-in logic
-    return SupaAuthResult(idToken: 'token', rawData: myCredential);
-  }
-}
+// Disposes all services and allows re-initialization
+await SupaHelper.instance.reset();
 ```
-
----
-
-## Reset / Logout
-
-Call `supa.reset()` after sign-out to clear all cached service instances:
-
-```dart
-await supabase.auth.signOut();
-supa.reset();
-```
-
----
-
-## License
-
-MIT

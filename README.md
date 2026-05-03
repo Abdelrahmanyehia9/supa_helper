@@ -1,16 +1,42 @@
 # supa_helper
 
-A Flutter package that simplifies Supabase integration by wrapping its core services — Authentication, Database, Storage, and Realtime — into a clean, unified API.
+<p align="center">
+  <a href="https://pub.dev/packages/supa_helper">
+    <img src="https://img.shields.io/pub/v/supa_helper.svg" alt="pub version"/>
+  </a>
+  <a href="https://pub.dev/packages/supa_helper">
+    <img src="https://img.shields.io/pub/points/supa_helper" alt="pub points"/>
+  </a>
+  <a href="https://opensource.org/licenses/MIT">
+    <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT license"/>
+  </a>
+</p>
+
+<p align="center">
+  A clean, unified Flutter wrapper around Supabase — less boilerplate, more productivity.
+</p>
+
+---
+
+## Why supa_helper?
+
+Using `supabase_flutter` directly works, but it requires repetitive setup code across every project. `supa_helper` gives you:
+
+- ✅ **One-line initialization** — set up Auth, Database, Storage, and Realtime in a single call
+- ✅ **Consistent API** — every service follows the same pattern, no surprises
+- ✅ **Typed exceptions** — know exactly which service failed and why
+- ✅ **Less boilerplate** — stop rewriting the same wrapper code in every project
 
 ---
 
 ## Features
 
-- 🔐 **Authentication** — Email/password, OTP, and social media sign-in
-- 🗄️ **Database** — Simple CRUD operations with typed responses
-- 📦 **Storage** — Upload, download, manage files and buckets
-- 📡 **Realtime** — Subscribe to Postgres changes with ease
-- ⚠️ **Typed Exceptions** — Every service throws its own typed exception
+| Service | Capabilities |
+|---|---|
+| 🔐 **Auth** | Email/password, OTP, social sign-in, auth state listener |
+| 🗄️ **Database** | GET, INSERT, UPDATE, UPSERT, DELETE, COUNT, RPC |
+| 📦 **Storage** | Upload, download, delete, signed URLs |
+| 📡 **Realtime** | Subscribe/unsubscribe to Postgres changes |
 
 ---
 
@@ -18,9 +44,13 @@ A Flutter package that simplifies Supabase integration by wrapping its core serv
 
 ```yaml
 dependencies:
-  supa_helper:
-    git:
-      url: https://github.com/YOUR_USERNAME/supa_helper.git
+  supa_helper: ^last-version
+```
+
+Then run:
+
+```bash
+flutter pub get
 ```
 
 ---
@@ -30,10 +60,16 @@ dependencies:
 ```dart
 import 'package:supa_helper/supa_helper.dart';
 
-await SupaHelper.instance.init(
-  url: 'YOUR_SUPABASE_URL',
-  anonKey: 'YOUR_ANON_KEY',
-);
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await SupaHelper.instance.init(
+    url: 'YOUR_SUPABASE_URL',
+    anonKey: 'YOUR_ANON_KEY',
+  );
+
+  runApp(const MyApp());
+}
 ```
 
 ---
@@ -59,7 +95,7 @@ await SupaHelper.instance.auth.signInWithEmailAndPassword(
 // Sign out
 await SupaHelper.instance.auth.signOut();
 
-// Forget password
+// Forgot password
 await SupaHelper.instance.auth.sendForgetPasswordEmail(
   email: 'user@example.com',
 );
@@ -91,7 +127,7 @@ class GoogleAuth implements SupaSocialMediaAuth {
 
   @override
   Future<SocialAuthResult> signIn() async {
-    // your google sign in logic
+    // Your Google Sign-In logic here
     return SocialAuthResult(
       idToken: 'ID_TOKEN',
       accessToken: 'ACCESS_TOKEN',
@@ -99,11 +135,8 @@ class GoogleAuth implements SupaSocialMediaAuth {
     );
   }
 }
-```
 
-Then pass it to `socialMediaSignIn`:
-
-```dart
+// Then use it:
 await SupaHelper.instance.auth.socialMediaSignIn(
   GoogleAuth(),
   (result) => print('Logged in: ${result.email}'),
@@ -121,7 +154,7 @@ final subscription = SupaHelper.instance.auth.setupAuthListener(
   onError: (e) => print('Auth error: $e'),
 );
 
-// Cancel when no longer needed
+// Always cancel when done
 subscription.cancel();
 ```
 
@@ -132,7 +165,7 @@ subscription.cancel();
 ```dart
 final db = SupaHelper.instance.database;
 
-// GET all
+// GET all rows
 final users = await db.GET(table: 'users');
 
 // GET with filter
@@ -141,19 +174,19 @@ final admins = await db.GET(
   filter: (q) => q.eq('role', 'admin'),
 );
 
-// GET single
+// GET single row
 final user = await db.GET_SINGLE(
   table: 'users',
   filter: (q) => q.eq('id', '123'),
 );
 
-// INSERT
+// INSERT one row
 await db.INSERT(
   table: 'users',
   data: {'name': 'John', 'email': 'john@example.com'},
 );
 
-// INSERT MANY
+// INSERT multiple rows
 await db.INSERT_MANY(
   table: 'users',
   data: [
@@ -170,7 +203,7 @@ await db.UPDATE(
   value: '123',
 );
 
-// UPSERT
+// UPSERT (insert or update)
 await db.UPSERT(
   table: 'users',
   data: {'id': '123', 'name': 'John'},
@@ -182,7 +215,7 @@ await db.DELETE(table: 'users', column: 'id', value: '123');
 // COUNT
 final count = await db.COUNT(table: 'users');
 
-// RPC
+// RPC (call a Postgres function)
 final result = await db.RPC(
   function: 'my_postgres_function',
   params: {'param1': 'value'},
@@ -196,14 +229,14 @@ final result = await db.RPC(
 ```dart
 final storage = SupaHelper.instance.storage;
 
-// Upload file
+// Upload a file and get its public URL
 final url = await storage.uploadAndGetUrl(
   file,
   bucketName: 'images',
   folderName: 'avatars',
 );
 
-// Upload bytes
+// Upload raw bytes
 final url = await storage.uploadBytesAndGetUrl(
   bytes,
   bucketName: 'images',
@@ -211,19 +244,19 @@ final url = await storage.uploadBytesAndGetUrl(
   mimeType: 'image/jpeg',
 );
 
-// Download
+// Download a file
 final bytes = await storage.downloadFile(
   bucketName: 'images',
   filePath: 'avatars/IMG123',
 );
 
-// Delete
+// Delete a file
 await storage.deleteFile(
   bucketName: 'images',
   filePath: 'avatars/IMG123',
 );
 
-// Signed URL
+// Create a signed (temporary) URL
 final signedUrl = await storage.createSignedUrl(
   bucketName: 'images',
   filePath: 'avatars/IMG123',
@@ -238,23 +271,23 @@ final signedUrl = await storage.createSignedUrl(
 ```dart
 final realtime = SupaHelper.instance.realtime;
 
-// Subscribe
+// Subscribe to table changes
 realtime.subscribeToTable(
   channelName: 'orders_channel',
   schema: 'public',
   table: 'orders',
   event: PostgresChangeEvent.all,
-  callback: (payload) => print('Change: $payload'),
-  onError: (e) => print('Error: $e'),
+  callback: (payload) => print('Change detected: $payload'),
+  onError: (e) => print('Realtime error: $e'),
 );
 
-// Unsubscribe
+// Unsubscribe from a specific channel
 realtime.unsubscribe('orders_channel');
 
-// Unsubscribe all
+// Unsubscribe from all channels
 realtime.unsubscribeAll();
 
-// Check status
+// Check subscription status
 print(realtime.isSubscribed('orders_channel'));
 print(realtime.activeChannelsCount);
 ```
@@ -263,14 +296,14 @@ print(realtime.activeChannelsCount);
 
 ## Error Handling
 
-Every service throws a typed exception:
+Every service throws its own typed exception, so you always know what went wrong:
 
-| Service    | Exception                |
-|------------|--------------------------|
-| Auth       | `SupaAuthException`      |
-| Database   | `SupaDatabaseException`  |
-| Storage    | `SupaStorageException`   |
-| Realtime   | `SupaRealtimeException`  |
+| Service | Exception |
+|---|---|
+| Auth | `SupaAuthException` |
+| Database | `SupaDatabaseException` |
+| Storage | `SupaStorageException` |
+| Realtime | `SupaRealtimeException` |
 
 ```dart
 try {
@@ -279,7 +312,9 @@ try {
     password: 'wrong_password',
   );
 } on SupaAuthException catch (e) {
-  print('Auth error: $e');
+  print('Auth failed: $e');
+} on SupaDatabaseException catch (e) {
+  print('Database error: $e');
 }
 ```
 
@@ -287,7 +322,26 @@ try {
 
 ## Reset
 
+If you need to re-initialize (e.g., switching environments):
+
 ```dart
-// Disposes all services and allows re-initialization
 await SupaHelper.instance.reset();
+// Now you can call init() again with different credentials
 ```
+
+---
+
+## Contributing
+
+Contributions are welcome! If you find a bug or want a new feature, feel free to open an issue or submit a PR on [GitHub](https://github.com/Abdelrahmanyehia9/supa_helper).
+
+**Planned features:**
+- Edge Functions support
+- Pagination helpers
+- Offline caching layer
+
+---
+
+## License
+
+MIT © [Abdelrahman Yehia](https://github.com/Abdelrahmanyehia9)

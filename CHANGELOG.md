@@ -15,3 +15,7 @@
 * adding comments
 ## 0.0.7
 * fix unused imports 
+## 0.0.8
+* fix 
+## 0.0.9
+* fix readme

@@ -10,70 +10,108 @@ final class SupaDatabaseImpl implements SupaDatabase {
 
   const SupaDatabaseImpl(this._client, {required this.retryOption});
 
-  @override
-  Future<List<Map<String, dynamic>>> GET({
+  // ─── helpers ────────────────────────────────────────────────
+
+  List<T> _mapList<T>(
+      List<Map<String, dynamic>> result,
+      T Function(Map<String, dynamic>)? mapper,
+      )
+  {
+    if (mapper != null) {
+      return result.map(mapper).toList();
+    }
+    if (T==dynamic||T == Map<String, dynamic>) {
+      return result.cast<T>();
+    }
+    throw ArgumentError('Mapper is required for type $T');
+  }
+
+  T _mapSingle<T>(
+      Map<String, dynamic> result,
+      T Function(Map<String, dynamic>)? mapper,
+      ) {
+    if (mapper != null) {
+      return mapper(result);
+    }
+    if (T== dynamic || T == Map<String, dynamic>) {
+      return result as T;
+    }
+    throw ArgumentError('Mapper is required for type $T');
+  }
+
+  // ─── GET ────────────────────────────────────────────────────
+@override
+  Future<List<T>> GET<T>({
     required String table,
     String? select,
+    T Function(Map<String, dynamic>)? mapper,
     PostgrestTransformBuilder<PostgrestList> Function(
         PostgrestFilterBuilder<PostgrestList>,
         )? filter,
     int? retryAttempt,
   }) async {
-    return retryOption.withRetry<List<Map<String, dynamic>>>(
+    return retryOption.withRetry<List<T>>(
       retries: retryAttempt,
           () async {
         final query = _client.from(table).select(select ?? '*');
-        return List<Map<String, dynamic>>.from(
-          await (filter != null ? filter(query) : query),
-        );
+        final result = await (filter != null ? filter(query) : query);
+        return _mapList<T>(result, mapper);
       },
     );
   }
 
+  // ─── GET_SINGLE ─────────────────────────────────────────────
+
   @override
-  Future<Map<String, dynamic>> GET_SINGLE({
+  Future<T> GET_SINGLE<T>({
     required String table,
     String? select,
     required PostgrestTransformBuilder<PostgrestList> Function(
         PostgrestFilterBuilder<PostgrestList>,
         ) filter,
+    T Function(Map<String, dynamic>)? mapper,
     int? retryAttempt,
   }) async {
-    return retryOption.withRetry<Map<String, dynamic>>(
+    return retryOption.withRetry<T>(
       retries: retryAttempt,
           () async {
         final query = _client.from(table).select(select ?? '*');
-        return await filter(query).maybeSingle() ?? {};
+        final result = await filter(query).maybeSingle() ?? {};
+        return _mapSingle<T>(result, mapper);
       },
     );
   }
 
+  // ─── GET_PAGINATED ──────────────────────────────────────────
+
   @override
-  Future<SupaPage> GET_PAGINATED({
+  Future<SupaPage<T>> GET_PAGINATED<T>({
     required String table,
     required int page,
     int perPage = 20,
     String? select,
+    T Function(Map<String, dynamic>)? mapper,
     PostgrestTransformBuilder<PostgrestList> Function(
         PostgrestFilterBuilder<PostgrestList>,
         )? filter,
     int? retryAttempt,
   }) async {
-    return retryOption.withRetry<SupaPage>(
+    return retryOption.withRetry<SupaPage<T>>(
       retries: retryAttempt,
           () async {
         final from = (page - 1) * perPage;
         final to = from + perPage - 1;
         final query = _client.from(table).select(select ?? '*');
         final filtered = filter != null ? filter(query) : query;
-        final response = await filtered.range(from, to).count(CountOption.exact);
+        final response =
+        await filtered.range(from, to).count(CountOption.exact);
         final int totalCount = response.count;
-        final data = (response.data as List?)
+        final rawList = (response.data as List?)
             ?.map((e) => Map<String, dynamic>.from(e))
             .toList() ??
             [];
-        return SupaPage(
-          data: data,
+        return SupaPage<T>(
+          data: _mapList<T>(rawList, mapper),
           totalCount: totalCount,
           hasMore: to < totalCount - 1,
           currentPage: page,
@@ -83,86 +121,105 @@ final class SupaDatabaseImpl implements SupaDatabase {
     );
   }
 
+  // ─── INSERT ─────────────────────────────────────────────────
+
   @override
-  Future<Map<String, dynamic>> INSERT({
+  Future<T> INSERT<T>({
     required String table,
     required Map<String, dynamic> data,
     String? select,
+    T Function(Map<String, dynamic>)? mapper,
     int? retryAttempt,
   }) async {
-    return retryOption.withRetry<Map<String, dynamic>>(
+    return retryOption.withRetry<T>(
       retries: retryAttempt,
           () async {
-        return await _client
+        final result = await _client
             .from(table)
             .insert(data)
             .select(select ?? '*')
             .maybeSingle() ??
             {};
+        return _mapSingle<T>(result, mapper);
       },
     );
   }
 
+  // ─── INSERT_MANY ────────────────────────────────────────────
+
   @override
-  Future<List<Map<String, dynamic>>> INSERT_MANY({
+  Future<List<T>> INSERT_MANY<T>({
     required String table,
     required List<Map<String, dynamic>> data,
     String? select,
+    T Function(Map<String, dynamic>)? mapper,
     int? retryAttempt,
   }) async {
-    return retryOption.withRetry<List<Map<String, dynamic>>>(
+    return retryOption.withRetry<List<T>>(
       retries: retryAttempt,
           () async {
-        return await _client.from(table).insert(data).select(select ?? '*');
+        final result =
+        await _client.from(table).insert(data).select(select ?? '*');
+        return _mapList<T>(result, mapper);
       },
     );
   }
 
+  // ─── UPDATE ─────────────────────────────────────────────────
+
   @override
-  Future<Map<String, dynamic>> UPDATE({
+  Future<T> UPDATE<T>({
     required String table,
     required Map<String, dynamic> data,
     String? select,
     String idColumn = 'id',
     required String idValue,
+    T Function(Map<String, dynamic>)? mapper,
     int? retryAttempt,
   }) async {
-    return retryOption.withRetry<Map<String, dynamic>>(
+    return retryOption.withRetry<T>(
       retries: retryAttempt,
           () async {
-        return await _client
+        final result = await _client
             .from(table)
             .update(data)
             .eq(idColumn, idValue)
             .select(select ?? '*')
             .maybeSingle() ??
             {};
+        return _mapSingle<T>(result, mapper);
       },
     );
   }
 
+  // ─── UPSERT ─────────────────────────────────────────────────
+
   @override
-  Future<Map<String, dynamic>> UPSERT({
+  Future<T> UPSERT<T>({
     required String table,
     required Map<String, dynamic> data,
     String? select,
     String idColumn = 'id',
     required String idValue,
+    T Function(Map<String, dynamic>)? mapper,
     int? retryAttempt,
   }) async {
-    return retryOption.withRetry<Map<String, dynamic>>(
+    return retryOption.withRetry<T>(
       retries: retryAttempt,
           () async {
-        return await _client
+        final result = await _client
             .from(table)
             .upsert(data)
             .eq(idColumn, idValue)
             .select(select ?? '*')
             .maybeSingle() ??
             {};
+        return _mapSingle<T>(result, mapper);
       },
     );
   }
+
+  // ─── DELETE ─────────────────────────────────────────────────
 
   @override
   Future<void> DELETE({
@@ -181,6 +238,8 @@ final class SupaDatabaseImpl implements SupaDatabase {
     );
   }
 
+  // ─── DELETE_MANY ────────────────────────────────────────────
+
   @override
   Future<void> DELETE_MANY({
     required String table,
@@ -196,6 +255,8 @@ final class SupaDatabaseImpl implements SupaDatabase {
     );
   }
 
+  // ─── EXISTS ─────────────────────────────────────────────────
+
   @override
   Future<bool> EXISTS({
     required String table,
@@ -208,25 +269,14 @@ final class SupaDatabaseImpl implements SupaDatabase {
       retries: retryAttempt,
           () async {
         final query = _client.from(table).select();
-        final response = await filter(query).limit(1).count(CountOption.exact);
+        final response =
+        await filter(query).limit(1).count(CountOption.exact);
         return response.count > 0;
       },
     );
   }
 
-  @override
-  Future<dynamic> RPC({
-    required String function,
-    Map<String, dynamic>? params,
-    int? retryAttempt,
-  }) async {
-    return retryOption.withRetry<dynamic>(
-      retries: retryAttempt,
-          () async {
-        return await _client.rpc(function, params: params);
-      },
-    );
-  }
+  // ─── COUNT ──────────────────────────────────────────────────
 
   @override
   Future<int> COUNT({
@@ -242,6 +292,22 @@ final class SupaDatabaseImpl implements SupaDatabase {
           () async {
         final query = _client.from(table).count(countOption);
         return filter != null ? await filter(query) : await query;
+      },
+    );
+  }
+
+  // ─── RPC ────────────────────────────────────────────────────
+
+  @override
+  Future<dynamic> RPC({
+    required String function,
+    Map<String, dynamic>? params,
+    int? retryAttempt,
+  }) async {
+    return retryOption.withRetry<dynamic>(
+      retries: retryAttempt,
+          () async {
+        return await _client.rpc(function, params: params);
       },
     );
   }

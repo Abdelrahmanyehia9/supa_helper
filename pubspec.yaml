@@ -1,6 +1,6 @@
 name: supa_helper
-description: "A clean and simple wrapper around Supabase for Flutter projects."
-version: 0.1.2
+description: "The Flutter productivity library that replaces scattered Supabase boilerplate with a unified, typed, and retry-capable API across auth, database, storage, and realtime."
+version: 0.1.3
 homepage: https://github.com/Abdelrahmanyehia9/supa_helper.git
 repository: https://github.com/Abdelrahmanyehia9/supa_helper.git
 issue_tracker: https://github.com/Abdelrahmanyehia9/supa_helper/issues

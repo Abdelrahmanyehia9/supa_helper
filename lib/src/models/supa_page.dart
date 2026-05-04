@@ -1,5 +1,5 @@
-class SupaPage {
-  final List<Map<String, dynamic>> data;
+class SupaPage<T> {
+  final List<T> data;
   final int totalCount;
   final bool hasMore;
   final int currentPage;

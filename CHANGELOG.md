@@ -26,3 +26,5 @@
 * add delete many and exists in database
 ## 0.1.2
 * add retry option
+## 0.1.3
+* add type mapping for database

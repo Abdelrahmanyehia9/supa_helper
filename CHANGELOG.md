@@ -22,4 +22,7 @@
 ## 0.1.0
 * update supabase version
 ## 0.1.1
-* add pagination && delete many and exists
+* add pagination 
+* add delete many and exists in database
+## 0.1.2
+* add retry option

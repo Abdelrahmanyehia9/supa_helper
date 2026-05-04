@@ -21,3 +21,5 @@
 * fix readme
 ## 0.1.0
 * update supabase version
+## 0.1.1
+* add pagination && delete many and exists

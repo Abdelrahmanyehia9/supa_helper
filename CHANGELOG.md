@@ -19,3 +19,5 @@
 * fix 
 ## 0.0.9
 * fix readme
+## 0.1.0
+* update supabase version

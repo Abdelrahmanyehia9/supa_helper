@@ -16,6 +16,7 @@ Future<void> main() async {
  await SupaHelper.instance.auth.createUser(
   email: 'user@example.com',
   password: 'password123',
+
   metaData: {'name': 'John'} //optional,
  );
  /// login

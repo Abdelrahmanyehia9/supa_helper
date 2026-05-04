@@ -9,9 +9,11 @@ abstract class SupaDatabase {
   Future<List<Map<String, dynamic>>> GET({
     required String table,
     String? select,
+
     PostgrestFilterBuilder<PostgrestList> Function(
         PostgrestFilterBuilder<PostgrestList>,
         )? filter,
+    int? retryAttempt,
   });
 
   /// Fetches a single row from [table]. Returns `{}` if not found.
@@ -21,6 +23,7 @@ abstract class SupaDatabase {
     required PostgrestTransformBuilder<PostgrestList> Function(
         PostgrestFilterBuilder<PostgrestList>,
         ) filter,
+    int? retryAttempt,
   });
 
   /// Fetches a paginated list of rows from [table].
@@ -32,6 +35,7 @@ abstract class SupaDatabase {
     PostgrestTransformBuilder<PostgrestList> Function(
         PostgrestFilterBuilder<PostgrestList>,
         )? filter,
+    int? retryAttempt,
   });
 
   /// Deletes multiple rows from [table] by their IDs.
@@ -47,6 +51,7 @@ abstract class SupaDatabase {
     required String table,
     required List<String> ids,
     String idColumn = 'id',
+    int? retryAttempt,
   });
 
   /// Returns true if a row exists in [table] matching the [filter].
@@ -63,6 +68,7 @@ abstract class SupaDatabase {
     required PostgrestFilterBuilder<PostgrestList> Function(
         PostgrestFilterBuilder<PostgrestList>,
         ) filter,
+    int? retryAttempt,
   });
 
   /// Inserts a single row into [table]. Returns the inserted row or `{}`.
@@ -70,6 +76,7 @@ abstract class SupaDatabase {
     required String table,
     required Map<String, dynamic> data,
     String? select,
+    int? retryAttempt,
   });
 
   /// Inserts multiple rows into [table]. Returns the inserted rows.
@@ -77,6 +84,7 @@ abstract class SupaDatabase {
     required String table,
     required List<Map<String, dynamic>> data,
     String? select,
+    int? retryAttempt,
   });
 
   /// Inserts or updates a row in [table] based on the primary key.
@@ -86,6 +94,7 @@ abstract class SupaDatabase {
     String? select,
     String idColumn = 'id',
     required String idValue,
+    int? retryAttempt,
   });
 
   /// Updates rows in [table] where [idColumn] equals [idValue].
@@ -95,6 +104,7 @@ abstract class SupaDatabase {
     String? select,
     String idColumn = 'id',
     required String idValue,
+    int? retryAttempt,
   });
 
   /// Deletes rows from [table] using a custom filter.
@@ -103,12 +113,14 @@ abstract class SupaDatabase {
     required PostgrestFilterBuilder<PostgrestList> Function(
         PostgrestTransformBuilder<void>,
         ) filter,
+    int? retryAttempt,
   });
 
   /// Calls a Postgres function [function] with optional [params].
   Future<dynamic> RPC({
     required String function,
     Map<String, dynamic>? params,
+    int? retryAttempt,
   });
 
   /// Returns the row count of [table]. Use [filter] to count specific rows.
@@ -118,5 +130,6 @@ abstract class SupaDatabase {
     PostgrestFilterBuilder<int> Function(
         PostgrestFilterBuilder<int>,
         )? filter,
+    int? retryAttempt,
   });
 }

@@ -10,6 +10,7 @@ abstract class SupabaseAuth{
   Future<AuthResponse> signInWithEmailAndPassword({
     required String email,
     required String password,
+    int? retryAttempt,
   });
   /// Creates a new user with [email] and [password].
   /// [metaData] is saved in `auth.users.raw_user_meta_data`.
@@ -17,6 +18,7 @@ abstract class SupabaseAuth{
     required String email,
     required String password,
     String? emailRedirectTo,
+    int? retryAttempt ,
     Map<String, dynamic>? metaData,
   }) ;
   /// Sends a password reset email to [email].
@@ -24,12 +26,14 @@ abstract class SupabaseAuth{
   Future<void> sendForgetPasswordEmail({
     required String email,
     String? redirect,
+    int? retryAttempt
   }) ;
   /// Updates the current user's [email], [password], or [data].
   Future<void> updateUser({
     String? password,
     String? email,
     Object? data,
+    int? retryAttempt
   }) ;
   /// Signs in using a social media [provider] (e.g. Google, Facebook).
   /// [onSuccess] returns the raw data from the provider typed as [T].
@@ -37,6 +41,7 @@ abstract class SupabaseAuth{
   Future<AuthResponse> socialMediaSignIn(
       SupaSocialMediaAuth provider,
      void Function(SocialAuthResult)? onSuccess,
+  {int? retryAttempt}
       );
 
 }

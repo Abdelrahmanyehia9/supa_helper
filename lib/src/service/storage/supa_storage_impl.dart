@@ -6,9 +6,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 
 final class SupaStorageImpl implements SupaStorage{
-
   final SupabaseStorageClient storage;
-  const SupaStorageImpl(this.storage);
+  const SupaStorageImpl(this.storage,);
 
   /// Uploads a [File] to `[folderName]/[prefix][timestamp]` and returns its public URL.
   @override

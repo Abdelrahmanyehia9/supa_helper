@@ -5,7 +5,6 @@ import 'package:supa_helper/src/service/authentication/supa_auth_mobile.dart';
 import 'package:supa_helper/src/service/authentication/supa_auth_social_media.dart';
 import 'package:supa_helper/src/helpers/retry_option.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:supa_helper/src/errors/supa_exception.dart';
 import 'package:supa_helper/src/models/supa_login_result.dart';
 
 final class SupaAuthImpl implements SupabaseAuth {
@@ -16,7 +15,7 @@ final class SupaAuthImpl implements SupabaseAuth {
 
   @override
   SupaAuthMobileAuthHelper get phoneProvider =>
-      SupaAuthMobileAuthHelper(_client);
+      SupaAuthMobileAuthHelper(_client, retryOption);
 
   /// Signs in a user with [email] and [password].
   @override
@@ -25,7 +24,7 @@ final class SupaAuthImpl implements SupabaseAuth {
     required String password,
     int? retryAttempt,
   }) async {
-    return retryOption.withRetry<AuthResponse>(retries: retryAttempt,() async {
+    return retryOption.withRetry<AuthResponse>(retries: retryAttempt, () async {
       return await _client.signInWithPassword(password: password, email: email);
     });
   }
@@ -35,10 +34,10 @@ final class SupaAuthImpl implements SupabaseAuth {
     required String email,
     required String password,
     String? emailRedirectTo,
-    int? retryAttempt ,
+    int? retryAttempt,
     Map<String, dynamic>? metaData,
   }) async {
-    return retryOption.withRetry<AuthResponse>(retries: retryAttempt,() async {
+    return retryOption.withRetry<AuthResponse>(retries: retryAttempt, () async {
       return _client.signUp(password: password, email: email, data: metaData);
     });
   }
@@ -47,9 +46,9 @@ final class SupaAuthImpl implements SupabaseAuth {
   Future<void> sendForgetPasswordEmail({
     required String email,
     String? redirect,
-    int? retryAttempt
+    int? retryAttempt,
   }) async {
-    return retryOption.withRetry<void>(retries: retryAttempt,() async {
+    return retryOption.withRetry<void>(retries: retryAttempt, () async {
       return await _client.resetPasswordForEmail(email, redirectTo: redirect);
     });
   }
@@ -59,9 +58,9 @@ final class SupaAuthImpl implements SupabaseAuth {
     String? password,
     String? email,
     Object? data,
-    int? retryAttempt
+    int? retryAttempt,
   }) async {
-    return retryOption.withRetry<void>(retries:  retryAttempt, () async {
+    return retryOption.withRetry<void>(retries: retryAttempt, () async {
       await _client.updateUser(
         UserAttributes(password: password, email: email, data: data),
       );
@@ -71,12 +70,10 @@ final class SupaAuthImpl implements SupabaseAuth {
   @override
   Future<AuthResponse> socialMediaSignIn(
     SupaSocialMediaAuth provider,
-    ValueChanged<SocialAuthResult>? onSuccess,
-  {
-    int? retryAttempt
-  }
-  ) async {
-    return retryOption.withRetry<AuthResponse>(retries:retryAttempt ,() async {
+    ValueChanged<SocialAuthResult>? onSuccess, {
+    int? retryAttempt,
+  }) async {
+    return retryOption.withRetry<AuthResponse>(retries: retryAttempt, () async {
       final response = await provider.signIn();
       final result = await _client.signInWithIdToken(
         idToken: response.idToken,
@@ -87,18 +84,7 @@ final class SupaAuthImpl implements SupabaseAuth {
     });
   }
 
-  /// Sets up a listener for Supabase authentication state changes.
-  ///
-  /// Returns a [StreamSubscription] — call `.cancel()` when no longer needed
-  /// Required callbacks:
-  /// - [onSignedIn] — called when a user signs in. Provides the user [id].
-  /// - [onSignedOut] — called when the user signs out or the session expires.
-  /// - [onUserUpdated] — called when user data (email/password/metadata) is updated. Provides the user [id].
-  /// Optional callbacks:
-  /// - [onInitialSession] — called on app launch if a valid session already exists.
-  /// - [onTokenRefreshed] — called when the access token is silently refreshed.
-  /// - [onFirstTimeJoin] — reserved for new user registration flow (handle externally).
-  /// - [onError] — called on unrecoverable auth errors with a [SupaAuthException].
+  @override
   StreamSubscription<AuthState> setupAuthListener({
     required Function(String id) onSignedIn,
     required Function() onSignedOut,
@@ -144,9 +130,78 @@ final class SupaAuthImpl implements SupabaseAuth {
 
   String? get uID => user?.id;
 
-  Future<void> signOut([int? retryAttempt]) {
-    return retryOption.withRetry<void>(retries:  retryAttempt, () async {
+  @override
+  Future<void> signOut({int? retryAttempt}) {
+    return retryOption.withRetry<void>(retries: retryAttempt, () async {
       return await _client.signOut();
+    });
+  }
+
+  @override
+  Future<void> reAuthenticate({int? retryAttempt}) {
+    return retryOption.withRetry<void>(retries: retryAttempt, () async {
+      return await _client.reauthenticate();
+    });
+
+
+
+  }
+
+  @override
+  Future<AuthResponse> refreshSession([int? retryAttempt]) {
+    return retryOption.withRetry<AuthResponse>(retries: retryAttempt, () async {
+      return await _client.refreshSession();
+    });
+  }
+
+
+  @override
+  Future<bool> signInWithOAuth(
+    OAuthProvider provider, {
+    String? redirectTo,
+    String? scopes,
+    LaunchMode launchMode = LaunchMode.platformDefault,
+    Map<String, String>? queryParams,
+    int? retryAttempt,
+  }) async {
+    return retryOption.withRetry(() async {
+      return await _client.signInWithOAuth(
+        provider,
+        scopes: scopes,
+        redirectTo: redirectTo,
+        authScreenLaunchMode: launchMode,
+        queryParams: queryParams,
+      );
+    }, retries: retryAttempt);
+  }
+
+  @override
+  Future<bool> signInWithSSO({
+    String? providerId,
+    String? domain,
+    String? redirectTo,
+    String? captchaToken,
+    LaunchMode launchMode = LaunchMode.platformDefault,
+    int? retryAttempt,
+  }) async {
+    return retryOption.withRetry<bool>(retries: retryAttempt, () async {
+      return await _client.signInWithSSO(
+        redirectTo: redirectTo,
+        domain: domain,
+        providerId: providerId,
+        captchaToken: captchaToken,
+        launchMode: launchMode,
+      );
+    });
+  }
+
+  @override
+  Future<AuthResponse>signInAnonymously({Map<String, dynamic>? data, String? captchaToken, int? retryAttempt}) {
+    return retryOption.withRetry<AuthResponse>(retries: retryAttempt, () async {
+      return await _client.signInAnonymously(
+        data: data,
+        captchaToken: captchaToken,
+      );
     });
   }
 }

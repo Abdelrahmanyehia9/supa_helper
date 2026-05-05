@@ -22,7 +22,7 @@ class RetryOption {
         return await request();
       } catch (e) {
         if (attempt >= maxAttempts) {
-          _log('❌ Failed after $maxAttempts attempts → $e');
+          if(maxAttempts>0) _log('❌ Failed after $maxAttempts attempts → $e');
           e.handleError();
         }
         final delay = min(pow(2, attempt).toInt(), maxDelay);

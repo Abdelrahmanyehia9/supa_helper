@@ -28,3 +28,5 @@
 * add retry option
 ## 0.1.3
 * add type mapping for database
+## 0.1.4
+*add auth options (signInAnonymously, signInWithOAuth, signInWithSSO)

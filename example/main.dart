@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:supa_helper/supa_helper.dart';
 
+/// you can use SupaHelper.instance to access all the services
 Future<void> main() async {
  WidgetsFlutterBinding.ensureInitialized();
 /// Init SupaHelper

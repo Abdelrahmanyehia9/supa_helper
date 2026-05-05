@@ -9,7 +9,6 @@
 <p>
   <a href="https://pub.dev/packages/supa_helper"><img src="https://img.shields.io/pub/v/supa_helper.svg" alt="pub version"/></a>
   <a href="https://pub.dev/packages/supa_helper"><img src="https://img.shields.io/pub/points/supa_helper" alt="pub points"/></a>
-  <a href="https://pub.dev/packages/supa_helper"><img src="https://img.shields.io/pub/dm/supa_helper" alt="monthly downloads"/></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT license"/></a>
 </p>
 

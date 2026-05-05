@@ -1,10 +1,10 @@
-import 'package:supa_helper/src/errors/handle_error.dart';
+import 'package:supa_helper/src/helpers/retry_option.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupaAuthMobileAuthHelper {
   final GoTrueClient _client;
-
-  const SupaAuthMobileAuthHelper(this._client);
+  final RetryOption retryOption;
+  const SupaAuthMobileAuthHelper(this._client, this.retryOption);
 
   /// send otp to phone number
   Future<void> sendOtp({
@@ -14,18 +14,17 @@ class SupaAuthMobileAuthHelper {
     // if true will create new user if not exist
     bool createUser = true,
     String? captchaToken,
+    int? retries,
   }) async {
-    try {
-      await _client.signInWithOtp(
+    return retryOption.withRetry(()async{
+      return   await _client.signInWithOtp(
         phone: phone,
         channel: channel,
         data: data,
         shouldCreateUser: createUser,
         captchaToken: captchaToken,
       );
-    } catch (e) {
-       e.handleError();
-    }
+    },retries: retries);
   }
 
   /// verify otp
@@ -35,8 +34,9 @@ class SupaAuthMobileAuthHelper {
     OtpType type = OtpType.sms,
     String? captchaToken,
     String? tokenHash,
+    int? retries,
   }) async {
-    try {
+    return retryOption.withRetry(()async{
       return await _client.verifyOTP(
         phone: phone,
         token: otp,
@@ -44,8 +44,6 @@ class SupaAuthMobileAuthHelper {
         captchaToken: captchaToken,
         tokenHash: tokenHash,
       );
-    } catch (e) {
-       e.handleError();
-    }
+    }, retries: retries);
   }
 }

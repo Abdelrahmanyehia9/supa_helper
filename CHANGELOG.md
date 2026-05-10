@@ -30,3 +30,6 @@
 * add type mapping for database
 ## 0.1.4
 *add auth options (signInAnonymously, signInWithOAuth, signInWithSSO)
+## 0.1.5
+* update id value from string to dynamic
+

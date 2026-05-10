@@ -13,13 +13,14 @@ final class SupaStorageImpl implements SupaStorage{
   @override
   Future<String> uploadAndGetUrl(
       File file, {
+        String? customName,
         required String bucketName,
         required String folderName,
         String prefix = "IMG",
         bool upsert = true,
       }) async {
     try {
-      final fileName = "$prefix${DateTime.now().millisecondsSinceEpoch}";
+      final fileName = customName ?? "$prefix${DateTime.now().millisecondsSinceEpoch}";
       final filePath = '$folderName/$fileName';
       await storage.from(bucketName).upload(filePath, file, fileOptions: FileOptions(upsert: upsert));
       return storage.from(bucketName).getPublicUrl(filePath);
@@ -32,6 +33,7 @@ final class SupaStorageImpl implements SupaStorage{
   @override
   Future<String> uploadBytesAndGetUrl(
       Uint8List bytes, {
+        String? customName,
         required String bucketName,
         required String folderName,
         required String mimeType,
@@ -39,7 +41,7 @@ final class SupaStorageImpl implements SupaStorage{
         bool upsert = true,
       }) async {
     try {
-      final fileName = "$prefix${DateTime.now().millisecondsSinceEpoch}";
+      final fileName =customName?? "$prefix${DateTime.now().millisecondsSinceEpoch}";
       final filePath = '$folderName/$fileName';
       await storage.from(bucketName).uploadBinary(
         filePath,

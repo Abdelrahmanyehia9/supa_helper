@@ -6,6 +6,7 @@ abstract class SupaStorage {
   /// Uploads a [File] to `[folderName]/[prefix][timestamp]` and returns its public URL.
   Future<String> uploadAndGetUrl(
       File file, {
+        String? customName,
         required String bucketName,
         required String folderName,
         String prefix = "IMG",
@@ -15,6 +16,7 @@ abstract class SupaStorage {
   /// Uploads raw [Uint8List] bytes with the given [mimeType] and returns its public URL.
   Future<String> uploadBytesAndGetUrl(
       Uint8List bytes, {
+        String? customName,
         required String bucketName,
         required String folderName,
         required String mimeType,

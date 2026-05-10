@@ -29,7 +29,8 @@ final class SupaDatabaseImpl implements SupaDatabase {
   T _mapSingle<T>(
       Map<String, dynamic> result,
       T Function(Map<String, dynamic>)? mapper,
-      ) {
+      )
+  {
     if (mapper != null) {
       return mapper(result);
     }
@@ -173,7 +174,7 @@ final class SupaDatabaseImpl implements SupaDatabase {
     required Map<String, dynamic> data,
     String? select,
     String idColumn = 'id',
-    required String idValue,
+    dynamic  idValue,
     T Function(Map<String, dynamic>)? mapper,
     int? retryAttempt,
   }) async {
@@ -200,7 +201,7 @@ final class SupaDatabaseImpl implements SupaDatabase {
     required Map<String, dynamic> data,
     String? select,
     String idColumn = 'id',
-    required String idValue,
+    dynamic idValue,
     T Function(Map<String, dynamic>)? mapper,
     int? retryAttempt,
   }) async {
@@ -243,7 +244,7 @@ final class SupaDatabaseImpl implements SupaDatabase {
   @override
   Future<void> DELETE_MANY({
     required String table,
-    required List<String> ids,
+    required List<dynamic> ids,
     String idColumn = 'id',
     int? retryAttempt,
   }) async {

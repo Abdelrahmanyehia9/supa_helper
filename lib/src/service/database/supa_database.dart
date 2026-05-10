@@ -164,7 +164,7 @@ abstract class SupaDatabase {
     required Map<String, dynamic> data,
     String? select,
     String idColumn = 'id',
-    required String idValue,
+    dynamic idValue,
     T Function(Map<String, dynamic>)? mapper,
     int? retryAttempt,
   });
@@ -187,7 +187,7 @@ abstract class SupaDatabase {
     required Map<String, dynamic> data,
     String? select,
     String idColumn = 'id',
-    required String idValue,
+    dynamic idValue,
     T Function(Map<String, dynamic>)? mapper,
     int? retryAttempt,
   });
@@ -220,7 +220,7 @@ abstract class SupaDatabase {
   /// ```
   Future<void> DELETE_MANY({
     required String table,
-    required List<String> ids,
+    required List<dynamic> ids,
     String idColumn = 'id',
     int? retryAttempt,
   });
